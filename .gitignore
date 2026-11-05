@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+# Only expenses3.txt is tracked; other .txt inputs stay local
+*.txt
+!expenses3.txt
