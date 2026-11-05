@@ -29,20 +29,14 @@ One expense per line:
 - Naming someone twice gives them two shares: `sam 900 sam ana ana lia` splits the amount into four parts, and ana owes two of them.
 - Decimal amounts work (`362.75`).
 - Blank lines are ignored.
-- Any line that doesn't match this format is skipped, so you can use such lines as comments. The script prints a short message for each one (`Invalid line: ...` or `Invalid amount: ...`), which is harmless. Start comments with `#` and make sure the second word isn't a number, otherwise the line is read as an expense.
+- Lines starting with `#` are comments and are ignored silently.
+- Any other line that doesn't match the format is skipped, and the script prints a short message for it (`Invalid line: ...` or `Invalid amount: ...`). Watch out for plain-text notes whose second word is a number, such as `Notes: 100 euros total`, because those are read as an expense.
 
 See [`example-expenses.txt`](example-expenses.txt) for a file that uses all of this.
 
 ## Output
 
 ```
-Invalid amount: Weekend in line: # Weekend trip expenses
-Invalid amount: Format: in line: # Format: payer amount people (space or comma separated)
-Invalid amount: Mixed in line: # Mixed spaces and commas, decimal amount
-Invalid amount: Payer in line: # Payer not in the list: tom paid the whole amount for max
-Invalid amount: Paid in line: # Paid only for themselves: no effect on balances
-Invalid amount: A in line: # A name listed twice gets two shares
-
 Balances:      # negative means should pay, and positive means should receive
 lia: 712.50
 nik: 46.96
@@ -67,12 +61,12 @@ ivy to nik: 46.96
 ivy to sam: 37.46
 ```
 
-The `Invalid ...` messages come from the comment lines in the example file and can be ignored. `tom to sam: 247.79` means tom pays sam 247.79.
+`tom to sam: 247.79` means tom pays sam 247.79.
 
 ## Limitations
 
 - Splits are always equal (apart from naming someone more than once).
 - Names are case-sensitive.
-- Comment lines work, but the script prints a message for each one.
+- Comments only work as whole lines starting with `#`, not after an expense on the same line.
 - The settlement list isn't guaranteed to use the fewest possible payments.
 - Amounts are plain floats, shown rounded to two decimals.

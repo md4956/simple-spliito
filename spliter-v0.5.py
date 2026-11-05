@@ -14,7 +14,7 @@ def main():
         with open(filename, 'r') as file:
             for line in file:
                 line = line.strip()
-                if not line:
+                if not line or line.startswith('#'):
                     continue
                 parts = line.split()
                 if len(parts) < 3:
