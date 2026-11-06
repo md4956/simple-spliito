@@ -11,7 +11,7 @@ Python 3. No external packages.
 ## Usage
 
 ```bash
-python3 simple-splitter.py example-expenses.txt
+python3 simple-spliito.py example-expenses.txt
 ```
 
 ## Input format
