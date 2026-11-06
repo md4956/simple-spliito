@@ -1,4 +1,46 @@
+EPSILON = 0.0001
+# The exact search doubles in cost with every extra person
+MAX_EXACT_PEOPLE = 18
+
+
+def split_into_groups(amounts):
+    """Split amounts into as many groups summing to zero as possible.
+
+    A group of k people settles in k - 1 payments, so the most groups gives
+    the fewest payments. Returns the groups as lists of indexes into amounts.
+    """
+    n = len(amounts)
+    size = 1 << n
+    totals = [0.0] * size  # sum of the amounts in each subset
+    counts = [0] * size    # most zero-sum groups the subset can be built from
+    removed = [0] * size   # index to remove to reach the best smaller subset
+
+    for mask in range(1, size):
+        best = -1
+        for i in range(n):
+            if mask & (1 << i):
+                rest = mask ^ (1 << i)
+                totals[mask] = totals[rest] + amounts[i]
+                if counts[rest] > best:
+                    best = counts[rest]
+                    removed[mask] = i
+        counts[mask] = best + (abs(totals[mask]) < EPSILON)
+
+    groups = []
+    group = []
+    mask = size - 1
+    while mask:
+        i = removed[mask]
+        group.append(i)
+        mask ^= 1 << i
+        if abs(totals[mask]) < EPSILON:
+            groups.append(group)
+            group = []
+    return groups
+
+
 def main():
+    import math
     import sys
     from collections import defaultdict
 
@@ -23,11 +65,13 @@ def main():
                 payer = parts[0]
                 try:
                     amount = float(parts[1])
+                    if not math.isfinite(amount):
+                        raise ValueError
                 except ValueError:
                     print(f"Invalid amount: {parts[1]} in line: {line}")
                     continue
                 related_str = parts[2:]
-                related_to = ','.join(related_str).split(',')
+                related_to = [p for p in ','.join(related_str).split(',') if p]
 
                 if not related_to:
                     print(f"Invalid related_to list in line: {line}")
@@ -48,22 +92,30 @@ def main():
         sys.exit(1)
 
     # Calculate settlements
-    debtors = {k: v for k, v in balances.items() if v > 0}
-    creditors = {k: v for k, v in balances.items() if v < 0}
+    people = [k for k, v in balances.items() if abs(v) >= EPSILON]
+    if len(people) > MAX_EXACT_PEOPLE:
+        print(f"Note: more than {MAX_EXACT_PEOPLE} people to settle, so the fewest payments isn't guaranteed.")
+        groups = [people]
+    else:
+        groups = [[people[i] for i in group] for group in split_into_groups([balances[p] for p in people])]
 
-    while debtors and creditors:
-        debtor = max(debtors.items(), key=lambda x: x[1])[0]
-        creditor = max(creditors.items(), key=lambda x: x[1])[0]
-        transfer = min(debtors[debtor], abs(creditors[creditor]))
+    for group in groups:
+        debtors = {k: balances[k] for k in group if balances[k] > 0}
+        creditors = {k: balances[k] for k in group if balances[k] < 0}
 
-        transactions.append((debtor, creditor, transfer))
-        debtors[debtor] -= transfer
-        creditors[creditor] += transfer
+        while debtors and creditors:
+            debtor = max(debtors.items(), key=lambda x: x[1])[0]
+            creditor = min(creditors.items(), key=lambda x: x[1])[0]
+            transfer = min(debtors[debtor], abs(creditors[creditor]))
 
-        if debtors[debtor] < 0.0001:
-            del debtors[debtor]
-        if creditors[creditor] > -0.0001:
-            del creditors[creditor]
+            transactions.append((debtor, creditor, transfer))
+            debtors[debtor] -= transfer
+            creditors[creditor] += transfer
+
+            if debtors[debtor] < EPSILON:
+                del debtors[debtor]
+            if creditors[creditor] > -EPSILON:
+                del creditors[creditor]
 
     # Output the results
     print("\nBalances:      # negative means should pay, and positive means should receive")
