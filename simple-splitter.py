@@ -3,7 +3,7 @@ def main():
     from collections import defaultdict
 
     if len(sys.argv) != 2:
-        print("Usage: python3 splitter-v0.5.py expenses.txt")
+        print("Usage: python3 simple-splitter.py expenses.txt")
         sys.exit(1)
 
     filename = sys.argv[1]
