@@ -24,6 +24,12 @@ Run it:
 python3 simple-spliito.py dinner.txt
 ```
 
+To run the tests (they only use the Python standard library):
+
+```bash
+python3 -m unittest discover -s tests
+```
+
 You get:
 
 ```
@@ -81,7 +87,7 @@ A line starting with `@` sets the currency for the expenses after it:
 - `@EUR` switches to euros.
 - `@` on its own switches back to plain numbers.
 
-If a file uses more than one currency, the output has a separate section for each one. Each section has its own balances and payments, and every amount shows its currency. The script never converts between currencies, so each section settles on its own.
+If a file uses more than one currency, the output has a separate section for each one, divided by a `-----` line. Each section has its own summary, balances, total and payments. Every heading names its currency, and every amount shows it too. A single currency doesn't get the divider. The script never converts between currencies, so each section settles on its own.
 
 ```
 # Trip, two currencies
@@ -95,35 +101,33 @@ bob 40 bob cy
 ```
 Trip, two currencies
 
-EUR
+SUMMARY - EUR: 3 people, 2 payments
 
-SUMMARY: 3 people, 2 payments
-
-BALANCES
+BALANCES - EUR
 
 nik gets 25.00 EUR
 ana gets 15.00 EUR
 eva owes 40.00 EUR
 
-TOTAL: 0.00 (balances add up to zero, so every payment is accounted for)
+TOTAL - EUR: 0.00 (balances add up to zero, so every payment is accounted for)
 
-PAYMENTS
+PAYMENTS - EUR
 
 eva pays nik 25.00 EUR
 eva pays ana 15.00 EUR
 
-NO CURRENCY
+-----
 
-SUMMARY: 2 people, 1 payment
+SUMMARY - NO CURRENCY: 2 people, 1 payment
 
-BALANCES
+BALANCES - NO CURRENCY
 
 bob gets 20.00
 cy owes 20.00
 
-TOTAL: 0.00 (balances add up to zero, so every payment is accounted for)
+TOTAL - NO CURRENCY: 0.00 (balances add up to zero, so every payment is accounted for)
 
-PAYMENTS
+PAYMENTS - NO CURRENCY
 
 cy pays bob 20.00
 ```

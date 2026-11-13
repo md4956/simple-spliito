@@ -69,16 +69,21 @@ def settle(balances):
     return transactions
 
 
-def print_report(balances, transactions, unit):
-    """Print one report. unit is the currency code, or '' for plain numbers."""
+def print_report(balances, transactions, unit, label):
+    """Print one report.
+
+    unit is the currency code, or '' for plain numbers. It is added after each amount.
+    label is the name shown in each heading, or '' when there is nothing to add.
+    """
     from collections import defaultdict
 
     suffix = f" {unit}" if unit else ""
+    heading_suffix = f" - {label}" if label else ""
     people_word = "person" if len(balances) == 1 else "people"
     payment_word = "payment" if len(transactions) == 1 else "payments"
-    print(f"SUMMARY: {len(balances)} {people_word}, {len(transactions)} {payment_word}\n")
+    print(f"SUMMARY{heading_suffix}: {len(balances)} {people_word}, {len(transactions)} {payment_word}\n")
 
-    print("BALANCES\n")
+    print(f"BALANCES{heading_suffix}\n")
     for person, balance in sorted(balances.items(), key=lambda x: -x[1]):
         if abs(balance) < 0.005:
             print(f"{person} is settled")
@@ -89,11 +94,11 @@ def print_report(balances, transactions, unit):
 
     total = sum(balances.values())
     if abs(total) < 0.005:
-        print("\nTOTAL: 0.00 (balances add up to zero, so every payment is accounted for)")
+        print(f"\nTOTAL{heading_suffix}: 0.00 (balances add up to zero, so every payment is accounted for)")
     else:
-        print(f"\nTOTAL: {total:,.2f} (should be 0.00, so the script has a calculation bug)")
+        print(f"\nTOTAL{heading_suffix}: {total:,.2f} (should be 0.00, so the script has a calculation bug)")
 
-    print("\nPAYMENTS\n")
+    print(f"\nPAYMENTS{heading_suffix}\n")
     if not transactions:
         print("Everyone is settled.")
         return
@@ -193,13 +198,13 @@ def main():
 
     # Plain-number expenses come first, then each currency in the order it first appears
     groups = balances.items() or [('', defaultdict(float))]
-    for unit, person_balances in groups:
-        if unit:
-            print(f"{unit}\n")
-        elif len(groups) > 1:
-            print("NO CURRENCY\n")
-        print_report(person_balances, settle(person_balances), unit)
-        print()
+    multiple = len(groups) > 1
+    for index, (unit, person_balances) in enumerate(groups):
+        if index and multiple:
+            print("\n-----\n")
+        label = unit or ('NO CURRENCY' if multiple else '')
+        print_report(person_balances, settle(person_balances), unit, label)
+    print()
 
 
 if __name__ == "__main__":
