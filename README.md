@@ -8,7 +8,7 @@ A small command-line tool for splitting shared expenses. You write down who paid
 
 Python 3. No external packages.
 
-## On your phone
+## Web version (phone and desktop)
 
 `docs/index.html` is the same tool as a web page. It runs entirely in the browser, so nothing is sent to a server. Once GitHub Pages is enabled for the `docs` folder, open the page on your phone, paste the expenses text (or load a `.txt` file), and tap **Calculate**. **Copy report** copies the plain-text report, and **Download .txt** saves the expenses. To keep it on the home screen, use "Add to Home Screen" in Safari or Chrome.
 

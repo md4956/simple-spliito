@@ -4,19 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#2f6fed">
+<!-- TODO: replace the text-based "S" icon with a proper app icon (icon.svg and the PNG sizes) -->
 <link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>simple-spliito</title>
 <style>
   :root {
     color-scheme: light dark;
-    --bg: #f6f7f9; --fg: #1d1f23; --card: #ffffff; --accent: #2f6fed; --line: #d9dce1;
+    --bg: #f6f7f9; --fg: #1d1f23; --muted: #6b7280; --card: #ffffff; --accent: #2f6fed; --line: #d9dce1;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #16181d; --fg: #eceef2; --card: #21242b; --accent: #6ea0ff; --line: #383d47; }
+    :root { --bg: #16181d; --fg: #eceef2; --muted: #9aa1ad; --card: #21242b; --accent: #6ea0ff; --line: #383d47; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); font-family: -apple-system, system-ui, sans-serif; }
-  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; }
   h1 { font-size: 1.4rem; margin: 8px 0 12px; }
   textarea, pre {
     width: 100%; background: var(--card); color: var(--fg);
@@ -24,7 +27,9 @@
     font-family: ui-monospace, Menlo, monospace;
   }
   textarea { min-height: 220px; font-size: 16px; line-height: 1.4; resize: vertical; }
-  pre { margin: 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  pre { margin: 0; min-height: 220px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  pre.placeholder { color: var(--muted); }
+  .hint { margin: 8px 0 0; color: var(--muted); font-size: 0.85rem; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
   button, .button {
     flex: 1 1 auto; font: inherit; text-align: center; padding: 12px 14px; border-radius: 10px;
@@ -32,50 +37,114 @@
   }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   input[type="file"] { display: none; }
-  .hidden { display: none; }
-  #result { margin-top: 16px; }
+  .workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .output .row { margin-top: 10px; }
+  #drop {
+    display: none; position: fixed; inset: 0; align-items: center; justify-content: center;
+    background: rgba(47, 111, 237, 0.15); border: 3px dashed var(--accent); font-size: 1.3rem; color: var(--accent);
+    pointer-events: none;
+  }
+  body.dragging #drop { display: flex; }
+  @media (min-width: 900px) {
+    main { padding: 24px; }
+    .workspace { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+    textarea { min-height: 480px; }
+    pre { min-height: 480px; }
+  }
 </style>
 </head>
 <body>
 <main>
   <h1>simple-spliito</h1>
 
-  <textarea id="input" spellcheck="false" placeholder="# Dinner&#10;ana 60 ana ben cy&#10;ben 30 ben cy"></textarea>
+  <div class="workspace">
+    <section class="input">
+      <textarea id="input" spellcheck="false" placeholder="# Dinner&#10;ana 60 ana ben cy&#10;ben 30 ben cy"></textarea>
+      <div class="row">
+        <button class="primary" id="calculate">Calculate</button>
+        <label class="button" for="file">Load .txt</label>
+        <input type="file" id="file" accept=".txt,text/plain">
+      </div>
+      <p class="hint">Ctrl+Enter or ⌘+Enter calculates. You can also drop a .txt file anywhere on this page.</p>
+    </section>
 
-  <div class="row">
-    <button class="primary" id="calculate">Calculate</button>
-    <label class="button" for="file">Load .txt</label>
-    <input type="file" id="file" accept=".txt,text/plain">
+    <section class="output">
+      <pre id="report" class="placeholder">The report appears here.</pre>
+      <div class="row">
+        <button id="copy">Copy report</button>
+        <button id="download">Download .txt</button>
+      </div>
+    </section>
   </div>
-
-  <section id="result" class="hidden">
-    <pre id="report"></pre>
-    <div class="row">
-      <button id="copy">Copy report</button>
-      <button id="download">Download .txt</button>
-    </div>
-  </section>
 </main>
+<div id="drop">Drop the .txt file here</div>
 
 <script src="spliito.js"></script>
 <script>
   const input = document.getElementById('input');
-  const result = document.getElementById('result');
   const report = document.getElementById('report');
 
   function calculate() {
     report.textContent = Spliito.run(input.value).text;
-    result.classList.remove('hidden');
+    report.classList.remove('placeholder');
+  }
+
+  // Title slug and local date-time, e.g. dinner-2026-11-14-2130.txt
+  function downloadName() {
+    const firstLine = input.value.split('\n')[0];
+    const title = /^﻿?\s*#/.test(firstLine) ? firstLine.replace(/^﻿?\s*#/, '').trim() : '';
+    const slug = title.replace(/[\\/:*?"<>|\x00-\x1f]+/g, '').trim().replace(/\s+/g, '-').slice(0, 60);
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+    return `${slug || 'expenses'}-${stamp}.txt`;
   }
 
   document.getElementById('calculate').addEventListener('click', calculate);
 
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      calculate();
+    }
+  });
+
+  function loadText(text) {
+    input.value = text;
+    calculate();
+  }
+
   document.getElementById('file').addEventListener('change', async (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    input.value = await file.text();
+    loadText(await file.text());
     event.target.value = '';  // lets the same file be loaded again
-    calculate();
+  });
+
+  // Drag and drop a .txt file anywhere on the page
+  let dragDepth = 0;
+  window.addEventListener('dragenter', (event) => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    dragDepth++;
+    document.body.classList.add('dragging');
+  });
+  window.addEventListener('dragover', (event) => {
+    if (event.dataTransfer.types.includes('Files')) event.preventDefault();
+  });
+  window.addEventListener('dragleave', () => {
+    if (--dragDepth <= 0) {
+      dragDepth = 0;
+      document.body.classList.remove('dragging');
+    }
+  });
+  window.addEventListener('drop', async (event) => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();  // stops the browser from opening the file
+    dragDepth = 0;
+    document.body.classList.remove('dragging');
+    const file = event.dataTransfer.files[0];
+    if (file && (/\.txt$/i.test(file.name) || file.type === 'text/plain')) loadText(await file.text());
   });
 
   document.getElementById('copy').addEventListener('click', async (event) => {
@@ -98,10 +167,12 @@
     const url = URL.createObjectURL(new Blob([input.value], { type: 'text/plain' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'expenses.txt';
+    link.download = downloadName();
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script>
 </body>
 </html>
