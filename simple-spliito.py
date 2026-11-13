@@ -111,7 +111,7 @@ def main():
             creditor = min(creditors.items(), key=lambda x: x[1])[0]
             transfer = min(debtors[debtor], abs(creditors[creditor]))
 
-            transactions.append((debtor, creditor, transfer))
+            transactions.append((creditor, debtor, transfer))
             debtors[debtor] -= transfer
             creditors[creditor] += transfer
 
@@ -122,12 +122,23 @@ def main():
 
     # Output the results
     print("\nBalances:      # negative means should pay, and positive means should receive")
-    for person, balance in balances.items():
-        print(f"{person}: {balance:.2f}")
+    name_width = max((len(p) for p in balances), default=0)
+    balance_width = max((len(f"{b:.2f}") for b in balances.values()), default=0)
+    for person, balance in sorted(balances.items(), key=lambda x: -x[1]):
+        print(f"  {person:<{name_width}}  {balance:>{balance_width}.2f}")
 
     print("\nSettlements:")
-    for debtor, creditor, amount in transactions:
-        print(f"{creditor} to {debtor}: {amount:.2f}")
+    if not transactions:
+        print("Everyone is settled.")
+    by_payer = defaultdict(list)
+    for payer, receiver, amount in transactions:
+        by_payer[payer].append((receiver, amount))
+    receiver_width = max((len(r) for _, r, _ in transactions), default=0)
+    amount_width = max((len(f"{a:.2f}") for _, _, a in transactions), default=0)
+    for payer, payments in by_payer.items():
+        print(f"{payer} pays:")
+        for receiver, amount in payments:
+            print(f"  → {receiver:<{receiver_width}}  {amount:>{amount_width}.2f}")
     print()
 
 if __name__ == "__main__":

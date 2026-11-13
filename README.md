@@ -41,30 +41,35 @@ See [`example-expenses.txt`](example-expenses.txt) for a file that uses all of t
 
 ```
 Balances:      # negative means should pay, and positive means should receive
-lia: 712.50
-nik: 46.96
-sam: 1816.58
-ben: -842.33
-eva: 246.54
-tom: -247.79
-ivy: -931.79
-max: -834.67
-joe: 730.67
-ana: -696.67
+  sam  1816.58
+  joe   730.67
+  lia   712.50
+  eva   246.54
+  nik    46.96
+  tom  -247.79
+  ana  -696.67
+  max  -834.67
+  ben  -842.33
+  ivy  -931.79
 
 Settlements:
-ivy to sam: 931.79
-ben to sam: 842.33
-max to joe: 730.67
-ana to lia: 696.67
-tom to eva: 246.54
-max to nik: 46.96
-max to sam: 42.46
-max to lia: 14.58
-tom to lia: 1.25
+ivy pays:
+  → sam  931.79
+ben pays:
+  → sam  842.33
+max pays:
+  → joe  730.67
+  → nik   46.96
+  → sam   42.46
+  → lia   14.58
+ana pays:
+  → lia  696.67
+tom pays:
+  → eva  246.54
+  → lia    1.25
 ```
 
-`ivy to sam: 931.79` means ivy pays sam 931.79.
+Balances are sorted from largest to smallest. Settlements are grouped by the person who pays, so `ivy pays: → sam 931.79` means ivy pays sam 931.79. If nothing is owed, the settlements section says `Everyone is settled.`
 
 ## Limitations
 
