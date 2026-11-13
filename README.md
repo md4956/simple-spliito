@@ -51,6 +51,7 @@ Balances:      # negative means should pay, and positive means should receive
   max  -834.67
   ben  -842.33
   ivy  -931.79
+Total: 0.00 (balances add up to zero, so every payment is accounted for)
 
 Settlements:
 ivy pays:
@@ -69,7 +70,7 @@ tom pays:
   → lia    1.25
 ```
 
-Balances are sorted from largest to smallest. Settlements are grouped by the person who pays, so `ivy pays: → sam 931.79` means ivy pays sam 931.79. If nothing is owed, the settlements section says `Everyone is settled.`
+Balances are sorted from largest to smallest. The `Total` line should always be `0.00`, because every expense takes money from the people who share it and gives it to the payer. If it isn't, the script has a calculation bug. Settlements are grouped by the person who pays, so `ivy pays: → sam 931.79` means ivy pays sam 931.79. If nothing is owed, the settlements section says `Everyone is settled.`
 
 ## Limitations
 

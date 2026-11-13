@@ -127,6 +127,12 @@ def main():
     for person, balance in sorted(balances.items(), key=lambda x: -x[1]):
         print(f"  {person:<{name_width}}  {balance:>{balance_width}.2f}")
 
+    total = sum(balances.values())
+    if abs(total) < 0.005:
+        print("Total: 0.00 (balances add up to zero, so every payment is accounted for)")
+    else:
+        print(f"Total: {total:.2f} (should be 0.00, so the script has a calculation bug)")
+
     print("\nSettlements:")
     if not transactions:
         print("Everyone is settled.")
