@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "simple-spliito.py"
 EXAMPLE = ROOT / "example-expenses.txt"
+EXAMPLE_MD = ROOT / "example-expenses.md"
 
 spec = importlib.util.spec_from_file_location("simple_spliito", SCRIPT)
 spliito = importlib.util.module_from_spec(spec)
@@ -135,6 +136,11 @@ class BalanceCalculationTests(unittest.TestCase):
         self.assertEqual(md_code, 0)
         self.assertEqual(md_stdout, txt_stdout)
         self.assertIn("Dinner", md_stdout)
+
+    def test_example_markdown_gives_the_same_report_as_example_txt(self):
+        outputs = [subprocess.run([sys.executable, str(SCRIPT), str(path)], capture_output=True, text=True).stdout
+                   for path in (EXAMPLE, EXAMPLE_MD)]
+        self.assertEqual(outputs[0], outputs[1])
 
     def test_payer_not_in_list_pays_whole_amount_for_others(self):
         stdout, _ = run_script("tom 415 max\n")

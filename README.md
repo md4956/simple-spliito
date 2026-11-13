@@ -139,7 +139,7 @@ Expenses before the first `@` line, and after an `@` line with nothing after it,
 
 ## Full example
 
-[`example-expenses.txt`](example-expenses.txt) uses every input feature:
+[`example-expenses.txt`](example-expenses.txt) uses every input feature. [`example-expenses.md`](example-expenses.md) is the same file as Markdown:
 
 ```bash
 python3 simple-spliito.py example-expenses.txt

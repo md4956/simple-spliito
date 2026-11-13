@@ -6,5 +6,6 @@ __pycache__/
 *.txt
 !example-expenses.txt
 *.md
+!example-expenses.md
 !README.md
 !CHANGELOG.md

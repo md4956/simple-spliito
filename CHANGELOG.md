@@ -2,10 +2,10 @@
 
 All notable changes to this project are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow [Semantic Versioning](https://semver.org/). Versions before 1.0.0 may change behavior in a minor release.
 
-## [Unreleased]
+## [1.1.0] - 2026-11-14
 
 ### Added
-- Markdown input: `.md` files are officially supported alongside `.txt`. The README documents it, the usage message mentions it, and the tests cover it. The script's behavior is unchanged.
+- Markdown input: `.md` files are officially supported alongside `.txt`, with a sample `example-expenses.md`. The README documents it, the usage message mentions it, and the tests cover it. The script's behavior is unchanged.
 
 ## [1.0.0] - 2026-11-14
 
