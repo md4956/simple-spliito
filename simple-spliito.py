@@ -80,6 +80,13 @@ def main():
                     print(f"Invalid related_to list in line: {line}")
                     continue
 
+                names = [payer, *related_to]
+                if any('*' in name or '~' in name for name in names):
+                    print(f"Error: '*' and '~' are not allowed in names: {line}")
+                    sys.exit(1)
+                if any('_' in name for name in names):
+                    print(f"Warning: '_' in a name can turn text italic in messengers: {line}")
+
                 n = len(related_to)
                 share = amount / n
 
@@ -121,30 +128,40 @@ def main():
                 del creditors[creditor]
 
     # Output the results
-    print("\nBalances:      # negative means should pay, and positive means should receive")
-    name_width = max((len(p) for p in balances), default=0)
-    balance_width = max((len(f"{b:.2f}") for b in balances.values()), default=0)
+    people_word = "person" if len(balances) == 1 else "people"
+    payment_word = "payment" if len(transactions) == 1 else "payments"
+    print(f"SUMMARY: {len(balances)} {people_word}, {len(transactions)} {payment_word}\n")
+
+    print("BALANCES")
     for person, balance in sorted(balances.items(), key=lambda x: -x[1]):
-        print(f"  {person:<{name_width}}  {balance:>{balance_width}.2f}")
+        if abs(balance) < 0.005:
+            print(f"{person} is settled")
+        elif balance > 0:
+            print(f"{person} gets {balance:,.2f}")
+        else:
+            print(f"{person} owes {-balance:,.2f}")
 
     total = sum(balances.values())
     if abs(total) < 0.005:
-        print("Total: 0.00 (balances add up to zero, so every payment is accounted for)")
+        print("\nTOTAL: 0.00 (balances add up to zero, so every payment is accounted for)")
     else:
-        print(f"Total: {total:.2f} (should be 0.00, so the script has a calculation bug)")
+        print(f"\nTOTAL: {total:,.2f} (should be 0.00, so the script has a calculation bug)")
 
-    print("\nSettlements:")
+    print("\nPAYMENTS")
     if not transactions:
         print("Everyone is settled.")
     by_payer = defaultdict(list)
     for payer, receiver, amount in transactions:
         by_payer[payer].append((receiver, amount))
-    receiver_width = max((len(r) for _, r, _ in transactions), default=0)
-    amount_width = max((len(f"{a:.2f}") for _, _, a in transactions), default=0)
-    for payer, payments in by_payer.items():
-        print(f"{payer} pays:")
-        for receiver, amount in payments:
-            print(f"  → {receiver:<{receiver_width}}  {amount:>{amount_width}.2f}")
+    paid = {payer: sum(amount for _, amount in items) for payer, items in by_payer.items()}
+    single = sorted((p for p in by_payer if len(by_payer[p]) == 1), key=lambda p: -paid[p])
+    multi = sorted((p for p in by_payer if len(by_payer[p]) > 1), key=lambda p: -paid[p])
+    for index, block in enumerate(b for b in (single, multi) if b):
+        if index:
+            print()
+        for payer in block:
+            for receiver, amount in sorted(by_payer[payer], key=lambda x: -x[1]):
+                print(f"{payer} pays {receiver} {amount:,.2f}")
     print()
 
 if __name__ == "__main__":
