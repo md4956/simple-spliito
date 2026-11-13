@@ -3,7 +3,7 @@
 lia 1250 lia nik sam ben
 # Mixed spaces and commas, decimal amount
 nik 640.5 nik eva tom,ivy
-sam 2100 sam ivy ben,max
+sam 2100 sam ivy ben,max # dinner, split with ivy and ben
 eva 980 eva joe tom
 # Payer not in the list: tom paid the whole amount for max
 tom 415 max

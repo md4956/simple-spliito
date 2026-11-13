@@ -54,9 +54,12 @@ def main():
 
     try:
         with open(filename, 'r') as file:
-            for line in file:
-                line = line.strip()
-                if not line or line.startswith('#'):
+            for raw_line in file:
+                head, comment_start, _ = raw_line.partition('#')
+                line = head.strip()
+                if comment_start and head[-1:] not in ('', ' ', '\t'):
+                    print(f"Warning: '#' right after a name starts a comment: {raw_line.strip()}")
+                if not line:
                     continue
                 parts = line.split()
                 if len(parts) < 3:

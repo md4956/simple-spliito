@@ -27,9 +27,11 @@ One expense per line:
 - The payer only gets a share if they list themselves: `lia 1250 lia nik sam ben` includes lia, while `tom 415 max` means tom paid the whole amount for max.
 - A line with only the payer and amount for themselves (`ivy 297 ivy`) has no effect on anyone's balance.
 - Naming someone twice gives them two shares: `sam 900 sam ana ana lia` splits the amount into four parts, and ana owes two of them.
+- Names can contain numbers, so repeated people can be `mia1 mia2 mia3`. Names can't contain `#`.
 - Decimal amounts work (`362.75`).
 - Blank lines are ignored.
-- Lines starting with `#` are comments and are ignored silently.
+- `#` starts a comment, and everything after it on that line is ignored. A comment can take a whole line or follow an expense: `dan 210 mia1 mia2 mia3 # mias are cousins`.
+- A `#` directly after a name, like `mia#2`, still starts a comment, so the script prints a `Warning:` line and the name is read as `mia`.
 - Amounts that aren't finite numbers (`nan`, `inf`, `1e999`) are rejected as invalid.
 - Any other line that doesn't match the format is skipped, and the script prints a short message for it (`Invalid line: ...`, `Invalid amount: ...` or `Invalid related_to list ...`). Watch out for plain-text notes whose second word is a number, such as `Notes: 100 euros total`, because those are read as an expense.
 
@@ -68,6 +70,5 @@ tom to lia: 1.25
 
 - Splits are always equal (apart from naming someone more than once).
 - Names are case-sensitive.
-- Comments only work as whole lines starting with `#`, not after an expense on the same line.
 - The fewest payments are only guaranteed for up to 18 people with a balance to settle. Above that, the exact search would take too long, so the script prints a note and uses a faster method that may list extra payments.
 - Amounts are plain floats, shown rounded to two decimals.
