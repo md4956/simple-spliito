@@ -39,69 +39,8 @@ def split_into_groups(amounts):
     return groups
 
 
-def main():
-    import math
-    import sys
-    from collections import defaultdict
-
-    if len(sys.argv) != 2:
-        print("Usage: python3 simple-spliito.py expenses.txt")
-        sys.exit(1)
-
-    filename = sys.argv[1]
-    balances = defaultdict(float)
-    transactions = []
-
-    try:
-        with open(filename, 'r') as file:
-            for raw_line in file:
-                head, comment_start, _ = raw_line.partition('#')
-                line = head.strip()
-                if comment_start and head[-1:] not in ('', ' ', '\t'):
-                    print(f"Warning: '#' right after a name starts a comment: {raw_line.strip()}")
-                if not line:
-                    continue
-                parts = line.split()
-                if len(parts) < 3:
-                    print(f"Invalid line: {line}")
-                    continue
-                payer = parts[0]
-                try:
-                    amount = float(parts[1])
-                    if not math.isfinite(amount):
-                        raise ValueError
-                except ValueError:
-                    print(f"Invalid amount: {parts[1]} in line: {line}")
-                    continue
-                related_str = parts[2:]
-                related_to = [p for p in ','.join(related_str).split(',') if p]
-
-                if not related_to:
-                    print(f"Invalid related_to list in line: {line}")
-                    continue
-
-                names = [payer, *related_to]
-                if any('*' in name or '~' in name for name in names):
-                    print(f"Error: '*' and '~' are not allowed in names: {line}")
-                    sys.exit(1)
-                if any('_' in name for name in names):
-                    print(f"Warning: '_' in a name can turn text italic in messengers: {line}")
-
-                n = len(related_to)
-                share = amount / n
-
-                balances[payer] += amount
-                for person in related_to:
-                    balances[person] -= share
-
-    except FileNotFoundError:
-        print(f"File {filename} not found.")
-        sys.exit(1)
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        sys.exit(1)
-
-    # Calculate settlements
+def settle(balances):
+    """Return the (payer, receiver, amount) payments that settle the balances."""
     people = [k for k, v in balances.items() if abs(v) >= EPSILON]
     if len(people) > MAX_EXACT_PEOPLE:
         print(f"Note: more than {MAX_EXACT_PEOPLE} people to settle, so the fewest payments isn't guaranteed.")
@@ -109,6 +48,7 @@ def main():
     else:
         groups = [[people[i] for i in group] for group in split_into_groups([balances[p] for p in people])]
 
+    transactions = []
     for group in groups:
         debtors = {k: balances[k] for k in group if balances[k] > 0}
         creditors = {k: balances[k] for k in group if balances[k] < 0}
@@ -126,20 +66,26 @@ def main():
                 del debtors[debtor]
             if creditors[creditor] > -EPSILON:
                 del creditors[creditor]
+    return transactions
 
-    # Output the results
+
+def print_report(balances, transactions, unit):
+    """Print one report. unit is the currency code, or '' for plain numbers."""
+    from collections import defaultdict
+
+    suffix = f" {unit}" if unit else ""
     people_word = "person" if len(balances) == 1 else "people"
     payment_word = "payment" if len(transactions) == 1 else "payments"
     print(f"SUMMARY: {len(balances)} {people_word}, {len(transactions)} {payment_word}\n")
 
-    print("BALANCES")
+    print("BALANCES\n")
     for person, balance in sorted(balances.items(), key=lambda x: -x[1]):
         if abs(balance) < 0.005:
             print(f"{person} is settled")
         elif balance > 0:
-            print(f"{person} gets {balance:,.2f}")
+            print(f"{person} gets {balance:,.2f}{suffix}")
         else:
-            print(f"{person} owes {-balance:,.2f}")
+            print(f"{person} owes {-balance:,.2f}{suffix}")
 
     total = sum(balances.values())
     if abs(total) < 0.005:
@@ -147,22 +93,112 @@ def main():
     else:
         print(f"\nTOTAL: {total:,.2f} (should be 0.00, so the script has a calculation bug)")
 
-    print("\nPAYMENTS")
+    print("\nPAYMENTS\n")
     if not transactions:
         print("Everyone is settled.")
+        return
+
     by_payer = defaultdict(list)
     for payer, receiver, amount in transactions:
         by_payer[payer].append((receiver, amount))
     paid = {payer: sum(amount for _, amount in items) for payer, items in by_payer.items()}
     single = sorted((p for p in by_payer if len(by_payer[p]) == 1), key=lambda p: -paid[p])
     multi = sorted((p for p in by_payer if len(by_payer[p]) > 1), key=lambda p: -paid[p])
-    for index, block in enumerate(b for b in (single, multi) if b):
+
+    # One block for everyone who pays once, then one block per person who pays several times
+    blocks = ([single] if single else []) + [[payer] for payer in multi]
+    for index, block in enumerate(blocks):
         if index:
             print()
         for payer in block:
             for receiver, amount in sorted(by_payer[payer], key=lambda x: -x[1]):
-                print(f"{payer} pays {receiver} {amount:,.2f}")
-    print()
+                print(f"{payer} pays {receiver} {amount:,.2f}{suffix}")
+
+
+def main():
+    import math
+    import sys
+    from collections import defaultdict
+
+    if len(sys.argv) != 2:
+        print("Usage: python3 simple-spliito.py expenses.txt")
+        sys.exit(1)
+
+    filename = sys.argv[1]
+    balances = defaultdict(lambda: defaultdict(float))  # currency -> person -> balance
+    currency = ''
+    title = ''
+
+    try:
+        # utf-8-sig skips the byte-order mark some editors add at the start of the file
+        with open(filename, 'r', encoding='utf-8-sig') as file:
+            for index, raw_line in enumerate(file):
+                if index == 0 and raw_line.lstrip().startswith('#'):
+                    title = raw_line.lstrip()[1:].strip()
+                head, comment_start, _ = raw_line.partition('#')
+                line = head.strip()
+                if comment_start and head[-1:] not in ('', ' ', '\t'):
+                    print(f"Warning: '#' right after a name starts a comment: {raw_line.strip()}")
+                if not line:
+                    continue
+                if line.startswith('@'):
+                    codes = line[1:].split()
+                    if len(codes) > 1:
+                        print(f"Invalid currency: {line}")
+                        continue
+                    currency = codes[0] if codes else ''
+                    continue
+
+                parts = line.split()
+                if len(parts) < 3:
+                    print(f"Invalid line: {line}")
+                    continue
+                payer = parts[0]
+                try:
+                    amount = float(parts[1])
+                    if not math.isfinite(amount):
+                        raise ValueError
+                except ValueError:
+                    print(f"Invalid amount: {parts[1]} in line: {line}")
+                    continue
+                related_to = [p for p in ','.join(parts[2:]).split(',') if p]
+
+                if not related_to:
+                    print(f"Invalid related_to list in line: {line}")
+                    continue
+
+                names = [payer, *related_to]
+                if any('*' in name or '~' in name for name in names):
+                    print(f"Error: '*' and '~' are not allowed in names: {line}")
+                    sys.exit(1)
+                if any('_' in name for name in names):
+                    print(f"Warning: '_' in a name can turn text italic in messengers: {line}")
+
+                share = amount / len(related_to)
+                balances[currency][payer] += amount
+                for person in related_to:
+                    balances[currency][person] -= share
+
+    except FileNotFoundError:
+        print(f"File {filename} not found.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        sys.exit(1)
+
+    if title:
+        print(f"{title}\n")
+
+    # Plain-number expenses come first, then each currency in the order it first appears
+    groups = balances.items() or [('', defaultdict(float))]
+    for unit, person_balances in groups:
+        if unit:
+            print(f"{unit}\n")
+        elif len(groups) > 1:
+            print("NO CURRENCY\n")
+        print_report(person_balances, settle(person_balances), unit)
+        print()
+
 
 if __name__ == "__main__":
     main()
