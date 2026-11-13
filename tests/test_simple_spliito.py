@@ -21,10 +21,10 @@ spliito = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(spliito)
 
 
-def run_script(content):
+def run_script(content, suffix=".txt"):
     """Write content to a temporary file, run the script on it, return (stdout, exit code)."""
     mode, data = ("wb", content) if isinstance(content, bytes) else ("w", content)
-    with tempfile.NamedTemporaryFile(mode, suffix=".txt", delete=False) as file:
+    with tempfile.NamedTemporaryFile(mode, suffix=suffix, delete=False) as file:
         file.write(data)
     try:
         result = subprocess.run([sys.executable, str(SCRIPT), file.name], capture_output=True, text=True)
@@ -127,6 +127,14 @@ class BalanceCalculationTests(unittest.TestCase):
         self.assertIn("ali gets 600,000.00 IRT", stdout)
         self.assertIn("sara owes 300,000.00 IRT", stdout)
         self.assertIn("reza owes 300,000.00 IRT", stdout)
+
+    def test_markdown_file_gives_the_same_report_as_txt(self):
+        text = "# Dinner\nana 60 ana ben cy\nben 30 ben cy\n"
+        txt_stdout, _ = run_script(text)
+        md_stdout, md_code = run_script(text, suffix=".md")
+        self.assertEqual(md_code, 0)
+        self.assertEqual(md_stdout, txt_stdout)
+        self.assertIn("Dinner", md_stdout)
 
     def test_payer_not_in_list_pays_whole_amount_for_others(self):
         stdout, _ = run_script("tom 415 max\n")
