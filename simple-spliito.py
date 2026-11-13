@@ -187,6 +187,8 @@ def main():
         sys.exit(1)
 
     if title:
+        if any(char in title for char in '_*~'):
+            print(f"Warning: '_', '*' and '~' in the title can change how messengers show it: {title}")
         print(f"{title}\n")
 
     # Plain-number expenses come first, then each currency in the order it first appears
