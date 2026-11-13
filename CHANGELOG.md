@@ -2,6 +2,14 @@
 
 All notable changes to this project are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow [Semantic Versioning](https://semver.org/). Versions before 1.0.0 may change behavior in a minor release.
 
+## [2.0.0] - 2026-11-14
+
+### Changed
+- Only `.txt` and `.md` files are accepted (the extension is case-insensitive). Any other file, including one without an extension, exits with `Unsupported file type`. This is a breaking change: files that were read before, such as `.csv` or extensionless files, now need a `.txt` or `.md` name.
+
+### Fixed
+- Files of other types are no longer parsed line by line, which printed an `Invalid line` message for each line and still exited with success. Binary files no longer fail with a decode error.
+
 ## [1.1.0] - 2026-11-14
 
 ### Added

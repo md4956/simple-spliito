@@ -130,6 +130,9 @@ def main():
         sys.exit(1)
 
     filename = sys.argv[1]
+    if not filename.lower().endswith(('.txt', '.md')):
+        print(f"Unsupported file type: {filename}. Use a .txt or .md file.")
+        sys.exit(1)
     balances = defaultdict(lambda: defaultdict(float))  # currency -> person -> balance
     currency = ''
     title = ''

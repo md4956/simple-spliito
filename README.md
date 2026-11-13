@@ -71,7 +71,7 @@ The amount is split equally between the people listed after it. The payer only g
 
 Other rules:
 
-- **File type:** `.txt` and `.md` files are read the same way. In a `.md` file, don't use Markdown syntax for expenses: a list bullet (`- ana 60 ana ben`) or a code fence (```` ``` ````) is read as plain text, so the line is skipped with an `Invalid amount` or `Invalid line` message.
+- **File type:** only `.txt` and `.md` files are accepted, and any other file (including one without an extension) stops with `Unsupported file type`. `.txt` and `.md` files are read the same way. In a `.md` file, don't use Markdown syntax for expenses: a list bullet (`- ana 60 ana ben`) or a code fence (```` ``` ````) is read as plain text, so the line is skipped with an `Invalid amount` or `Invalid line` message.
 - **Names** can be separated by spaces, commas or both: `nik 640.5 nik eva tom,ivy` and `nik 640.5 nik, eva, tom, ivy` mean the same thing.
 - **Repeated names** get more shares. `sam 900 sam ana ana lia` splits 900 into four parts, and ana owes two of them. Numbers are allowed in names, so `mia1 mia2 mia3` are three people.
 - **Decimals** work: `362.75`. Amounts that aren't finite numbers (`nan`, `inf`, `1e999`) are rejected.
