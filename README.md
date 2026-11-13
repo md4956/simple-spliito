@@ -10,6 +10,8 @@ Python 3. No external packages.
 
 ## Quick start
 
+Download `simple-spliito.py` from the [latest release](https://github.com/md4956/simple-spliito/releases/latest), or clone the repo.
+
 Save this as `dinner.txt`:
 
 ```
