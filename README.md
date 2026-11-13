@@ -1,6 +1,6 @@
 # simple-spliito
 
-A small command-line tool for splitting shared expenses. You write down who paid what and who it was for in a text file. It prints each person's balance and the fewest payments that settle everyone up.
+A small command-line tool for splitting shared expenses. You write down who paid what and who it was for in a text file (`.txt` or `.md`). It prints each person's balance and the fewest payments that settle everyone up.
 
 > Hobby project, still under development.
 
@@ -12,7 +12,7 @@ Python 3. No external packages.
 
 Download `simple-spliito.py` from the [latest release](https://github.com/md4956/simple-spliito/releases/latest), or clone the repo.
 
-Save this as `dinner.txt`:
+Save this as `dinner.txt` (or `dinner.md`, which works the same way):
 
 ```
 # Dinner
@@ -71,6 +71,7 @@ The amount is split equally between the people listed after it. The payer only g
 
 Other rules:
 
+- **File type:** `.txt` and `.md` files are read the same way. In a `.md` file, don't use Markdown syntax for expenses: a list bullet (`- ana 60 ana ben`) or a code fence (```` ``` ````) is read as plain text, so the line is skipped with an `Invalid amount` or `Invalid line` message.
 - **Names** can be separated by spaces, commas or both: `nik 640.5 nik eva tom,ivy` and `nik 640.5 nik, eva, tom, ivy` mean the same thing.
 - **Repeated names** get more shares. `sam 900 sam ana ana lia` splits 900 into four parts, and ana owes two of them. Numbers are allowed in names, so `mia1 mia2 mia3` are three people.
 - **Decimals** work: `362.75`. Amounts that aren't finite numbers (`nan`, `inf`, `1e999`) are rejected.
@@ -138,7 +139,7 @@ Expenses before the first `@` line, and after an `@` line with nothing after it,
 
 ## Full example
 
-[`example-expenses.txt`](example-expenses.txt) uses every input feature:
+[`example-expenses.txt`](example-expenses.txt) uses every input feature. [`example-expenses.md`](example-expenses.md) is the same file as Markdown:
 
 ```bash
 python3 simple-spliito.py example-expenses.txt
