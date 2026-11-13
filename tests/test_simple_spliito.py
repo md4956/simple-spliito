@@ -142,6 +142,24 @@ class BalanceCalculationTests(unittest.TestCase):
                    for path in (EXAMPLE, EXAMPLE_MD)]
         self.assertEqual(outputs[0], outputs[1])
 
+    def test_other_file_types_are_rejected_before_reading(self):
+        for suffix in (".csv", ".json", ".docx", ""):
+            with self.subTest(suffix=suffix):
+                stdout, code = run_script("ana 60 ana ben\n", suffix=suffix)
+                self.assertEqual(code, 1)
+                self.assertIn("Unsupported file type", stdout)
+                self.assertNotIn("Invalid line", stdout)
+
+    def test_binary_file_with_other_extension_is_rejected_cleanly(self):
+        stdout, code = run_script(b"PK\x03\x04\xca\xfe\x00", suffix=".docx")
+        self.assertEqual(code, 1)
+        self.assertIn("Unsupported file type", stdout)
+
+    def test_extension_check_ignores_case(self):
+        stdout, code = run_script("ana 60 ana ben\n", suffix=".MD")
+        self.assertEqual(code, 0)
+        self.assertIn("ana gets 30.00", stdout)
+
     def test_payer_not_in_list_pays_whole_amount_for_others(self):
         stdout, _ = run_script("tom 415 max\n")
         self.assertIn("tom gets 415.00", stdout)
