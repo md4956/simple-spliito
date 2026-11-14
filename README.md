@@ -36,6 +36,12 @@ To run the tests (they only use the Python standard library):
 python3 -m unittest discover -s tests
 ```
 
+The web page has browser tests (layout, input, buttons, page loading, output text and files, offline). They need Node.js 22 or newer and Chrome; set `CHROME_PATH` if Chrome is not in a standard place:
+
+```bash
+node --test tests/web/
+```
+
 You get:
 
 ```
