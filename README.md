@@ -191,6 +191,18 @@ The output is plain text with short lines and no decoration, so it reads the sam
 
 The format is versioned. This README describes version 3.0.0 (see the [changelog](CHANGELOG.md)).
 
+## Versions and releases
+
+Each version in [CHANGELOG.md](CHANGELOG.md) has a [GitHub release](https://github.com/md4956/simple-spliito/releases) with `simple-spliito.py` attached. The newest version is marked as the latest release, and that's the one the download link above points to.
+
+Releases are automatic. When a change that adds a version is merged to `main`, the release workflow (`.github/workflows/release.yml`) creates that version's release, with its CHANGELOG section as the notes. Pushes that don't add a version create nothing.
+
+To publish a new version, in the same pull request:
+
+1. Add a CHANGELOG section with the new version and today's date, above the previous one.
+2. Update the "This README describes version" line above to the new version.
+3. Merge to `main`. The tests check that steps 1 and 2 agree.
+
 ## Limitations
 
 - Splits are always equal, apart from naming someone more than once.

@@ -1,0 +1,38 @@
+# Creates the GitHub release for the newest version in CHANGELOG.md, with simple-spliito.py attached.
+# When that version already has a release, nothing happens, so pushes that don't add a version are safe.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [CHANGELOG.md, simple-spliito.py, scripts/release.py]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the tests
+        run: python3 -m unittest discover -s tests
+
+      - name: Create the release if this version has none yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(python3 scripts/release.py latest)
+          tag="v$version"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "$tag already has a release"
+            exit 0
+          fi
+          python3 scripts/release.py notes "$version" > release-notes.md
+          gh release create "$tag" simple-spliito.py \
+            --title "$tag" \
+            --notes-file release-notes.md \
+            --target "$GITHUB_SHA" \
+            --latest
