@@ -146,7 +146,8 @@
     });
   }
 
-  // Returns { text, ok }: the same stdout the script prints, and false where the script exits with an error
+  // Returns { text, ok, expenses }: the same stdout the script prints, false where the script exits
+  // with an error, and how many expense lines were read
   function run(text) {
     let out = '';
     const print = (s = '') => {
@@ -155,6 +156,7 @@
     const balances = new Map();  // currency -> Map(person -> balance)
     let currency = '';
     let title = '';
+    let expenses = 0;
 
     const lines = text.replace(/^﻿/, '').split(/\r\n|\r|\n/);
     for (let index = 0; index < lines.length; index++) {
@@ -198,12 +200,13 @@
       const names = [payer, ...relatedTo];
       if (names.some((name) => name.includes('*') || name.includes('~'))) {
         print(`Error: '*' and '~' are not allowed in names: ${line}`);
-        return { text: out, ok: false };
+        return { text: out, ok: false, expenses };
       }
       if (names.some((name) => name.includes('_'))) {
         print(`Warning: '_' in a name can turn text italic in messengers: ${line}`);
       }
 
+      expenses++;
       const share = amount / relatedTo.length;
       if (!balances.has(currency)) balances.set(currency, new Map());
       const current = balances.get(currency);
@@ -228,7 +231,7 @@
       printReport(personBalances, transactions, unit, label, print);
     });
     print();
-    return { text: out, ok: true };
+    return { text: out, ok: true, expenses };
   }
 
   const Spliito = { run };

@@ -29,7 +29,12 @@
   textarea { min-height: 220px; font-size: 16px; line-height: 1.4; resize: vertical; }
   pre { margin: 0; min-height: 220px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
   pre.placeholder { color: var(--muted); }
+  pre.stale { opacity: 0.55; }
+  pre.updated { animation: flash 1.2s ease-out; }
+  @keyframes flash { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 0 transparent; } }
+  @media (prefers-reduced-motion: reduce) { pre.updated { animation: none; } }
   .hint { margin: 8px 0 0; color: var(--muted); font-size: 0.85rem; }
+  .status { min-height: 1.2em; margin: 0 0 8px; color: var(--muted); font-size: 0.85rem; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
   button, .button {
     flex: 1 1 auto; font: inherit; text-align: center; padding: 12px 14px; border-radius: 10px;
@@ -62,32 +67,65 @@
       <textarea id="input" aria-label="Expenses" spellcheck="false" placeholder="# Dinner&#10;ana 60 ana ben cy&#10;ben 30 ben cy"></textarea>
       <div class="row">
         <button class="primary" id="calculate">Calculate</button>
-        <label class="button" for="file">Load .txt</label>
-        <input type="file" id="file" accept=".txt,text/plain">
+        <label class="button" for="file">Load .txt or .md</label>
+        <input type="file" id="file" accept=".txt,.md,text/plain,text/markdown">
       </div>
-      <p class="hint">Ctrl+Enter or ⌘+Enter calculates. You can also drop a .txt file anywhere on this page.</p>
+      <p class="hint">Ctrl+Enter or ⌘+Enter calculates. You can also drop a .txt or .md file anywhere on this page.</p>
     </section>
 
     <section class="output">
+      <p class="status" id="status"></p>
       <pre id="report" class="placeholder" aria-live="polite">The report appears here.</pre>
       <div class="row">
         <button id="copy">Copy report</button>
-        <button id="download">Download .txt</button>
+        <button id="download">Download</button>
       </div>
     </section>
   </div>
 </main>
-<div id="drop">Drop the .txt file here</div>
+<div id="drop">Drop the .txt or .md file here</div>
 
 <script src="spliito.js"></script>
 <script>
   const input = document.getElementById('input');
   const report = document.getElementById('report');
+  const status = document.getElementById('status');
+  // Shown instead of an empty report when no expense line could be read
+  const HINT = [
+    'Nothing to calculate yet. Write one expense per line: the payer, the amount, then the people it is split between.',
+    '',
+    '    # Dinner',
+    '    ana 60 ana ben cy',
+    '    ben 30 ben cy',
+    '',
+    'The first line can be a # title. Load a .txt or .md file, or drop one anywhere on this page.',
+  ].join('\n');
+  let calculatedText = null;  // the input the report was made from
+  let fileExt = '.txt';       // extension of the last loaded file, so Download keeps it
 
   function calculate() {
-    report.textContent = Spliito.run(input.value).text;
+    const result = Spliito.run(input.value);
+    // Show the problems found, then how to write an expense, instead of a report with no people in it
+    const notes = result.text.split('\n').filter((line) => /^(Invalid|Warning|Error)/.test(line));
+    report.textContent = result.expenses ? result.text : (notes.length ? notes.join('\n') + '\n\n' : '') + HINT;
     report.classList.remove('placeholder');
+    calculatedText = input.value;
+    updateStale();
+    // Restart the highlight, so it shows on every calculation even when the report looks the same
+    report.classList.remove('updated');
+    void report.offsetWidth;
+    report.classList.add('updated');
   }
+
+  // Dims the report and says so once the input no longer matches it
+  function updateStale() {
+    if (calculatedText === null) return;
+    const stale = input.value !== calculatedText;
+    report.classList.toggle('stale', stale);
+    status.textContent = stale ? 'Text changed. Press Calculate to update the report.' : 'Report updated.';
+  }
+
+  input.addEventListener('input', updateStale);
 
   // Title slug and local date-time, e.g. dinner-2026-11-14-2130.txt
   function downloadName() {
@@ -97,7 +135,7 @@
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
     const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
-    return `${slug || 'expenses'}-${stamp}.txt`;
+    return `${slug || 'expenses'}-${stamp}${fileExt}`;
   }
 
   document.getElementById('calculate').addEventListener('click', calculate);
@@ -116,11 +154,12 @@
 
   // Shared by the file picker and drag and drop
   async function loadFile(file) {
-    if (!/\.txt$/i.test(file.name) && file.type !== 'text/plain') {
-      report.textContent = `Not a .txt file: ${file.name}`;
+    if (!/\.(txt|md)$/i.test(file.name) && !['text/plain', 'text/markdown'].includes(file.type)) {
+      report.textContent = `Not a .txt or .md file: ${file.name}`;
       report.classList.remove('placeholder');
       return;
     }
+    fileExt = /\.md$/i.test(file.name) ? '.md' : '.txt';
     loadText(await file.text());
   }
 
@@ -129,7 +168,7 @@
     event.target.value = '';  // lets the same file be loaded again
   });
 
-  // Drag and drop a .txt file anywhere on the page
+  // Drag and drop a .txt or .md file anywhere on the page
   let dragDepth = 0;
   window.addEventListener('dragenter', (event) => {
     if (!event.dataTransfer.types.includes('Files')) return;

@@ -10,7 +10,7 @@ Python 3. No external packages.
 
 ## Web version (phone and desktop)
 
-`docs/index.html` is the same tool as a web page. It runs entirely in the browser, so nothing is sent to a server. Once GitHub Pages is enabled for the `docs` folder, open the page on your phone, paste the expenses text (or load a `.txt` file), and tap **Calculate**. **Copy report** copies the plain-text report, and **Download .txt** saves the expenses. To keep it on the home screen, use "Add to Home Screen" in Safari or Chrome.
+`docs/index.html` is the same tool as a web page. It runs entirely in the browser, so nothing is sent to a server. Once GitHub Pages is enabled for the `docs` folder, open the page on your phone, paste the expenses text (or load a `.txt` or `.md` file), and tap **Calculate**. **Copy report** copies the plain-text report, and **Download** saves the expenses as a `.txt` or `.md` file, matching the file you loaded. To keep it on the home screen, use "Add to Home Screen" in Safari or Chrome.
 
 ## Quick start
 
