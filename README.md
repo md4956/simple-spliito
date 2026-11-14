@@ -8,6 +8,10 @@ A small command-line tool for splitting shared expenses. You write down who paid
 
 Python 3. No external packages.
 
+## Web version (phone and desktop)
+
+`docs/index.html` is the same tool as a web page. It runs entirely in the browser, so nothing is sent to a server. Once GitHub Pages is enabled for the `docs` folder, open the page on your phone, paste the expenses text (or load a `.txt` file), and tap **Calculate**. **Copy report** copies the plain-text report, and **Download .txt** saves the expenses. To keep it on the home screen, use "Add to Home Screen" in Safari or Chrome.
+
 ## Quick start
 
 Download `simple-spliito.py` from the [latest release](https://github.com/md4956/simple-spliito/releases/latest), or clone the repo.
@@ -30,6 +34,12 @@ To run the tests (they only use the Python standard library):
 
 ```bash
 python3 -m unittest discover -s tests
+```
+
+The web page has browser tests (layout, input, buttons, page loading, output text and files, offline). They need Node.js 22 or newer and Chrome; set `CHROME_PATH` if Chrome is not in a standard place:
+
+```bash
+node --test tests/web/
 ```
 
 You get:
