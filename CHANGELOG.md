@@ -2,6 +2,20 @@
 
 All notable changes to this project are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow [Semantic Versioning](https://semver.org/). Versions before 1.0.0 may change behavior in a minor release.
 
+## [3.0.0] - 2026-11-14
+
+### Added
+- A web page in `docs/` that prints the same report as the script. It loads `.txt` and `.md` files, works offline after one visit, and has Copy and Download buttons.
+- A guide instead of an empty report when no expense line can be read, on the web page and in the script.
+- On the web page, the report is dimmed when the text changes after Calculate, and it flashes when it updates.
+
+### Changed
+- The report starts with PAYMENTS, then BALANCES, then one line with the people, payments and total. The SUMMARY and TOTAL headings are gone, and so is the `-----` divider between currencies.
+- Each currency section is headed with its currency, such as `PAYMENTS (EUR)`.
+- Warnings and skipped lines (`Invalid ...`, `Warning: ...`, `Note: ...`) are listed in a WARNINGS block after the report, instead of before it.
+- The report has no rule lines and no indentation, and its lines are short, so it pastes cleanly into messengers and reads on a narrow screen.
+- The output format is the same on the web page, from the file, and from the command line. This is a breaking change for anyone who reads the output by its old headings.
+
 ## [2.0.0] - 2026-11-14
 
 ### Changed

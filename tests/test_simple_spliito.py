@@ -49,6 +49,11 @@ def min_payments(values):
     return best
 
 
+def payment_lines(stdout):
+    """The lines under the first PAYMENTS heading, up to the next blank line."""
+    return stdout.split("PAYMENTS\n", 1)[1].split("\n\n", 1)[0].splitlines()
+
+
 def net_after(balances, payments):
     """Balances left after applying the payments. Should be zero for everyone."""
     net = dict(balances)
@@ -70,7 +75,7 @@ class SettlementAccuracyTests(unittest.TestCase):
         for case in range(300):
             values = random_zero_sum(rng, rng.randint(2, 7))
             balances = {f"p{i}": float(v) for i, v in enumerate(values)}
-            payments = spliito.settle(balances)
+            payments = spliito.settle(balances, [])
             with self.subTest(case=case, values=values):
                 self.assertEqual(len(payments), min_payments(values))
                 net = net_after(balances, payments)
@@ -83,24 +88,24 @@ class SettlementAccuracyTests(unittest.TestCase):
             values = [round(rng.uniform(-500, 500), 2) for _ in range(people - 1)]
             values.append(round(-sum(values), 2))
             balances = {f"p{i}": v for i, v in enumerate(values)}
-            payments = spliito.settle(balances)
+            payments = spliito.settle(balances, [])
             net = net_after(balances, payments)
             with self.subTest(case=case):
                 self.assertTrue(all(abs(v) < 0.001 for v in net.values()), net)
 
     def test_two_payments_instead_of_greedy_three(self):
-        payments = spliito.settle({"a": 10.0, "b": 5.0, "c": -10.0, "d": -5.0})
+        payments = spliito.settle({"a": 10.0, "b": 5.0, "c": -10.0, "d": -5.0}, [])
         self.assertEqual(sorted(payments), [("c", "a", 10.0), ("d", "b", 5.0)])
 
     def test_three_payments_for_four_people(self):
         balances = {"ali": 200000.0, "sara": 150000.0, "mina": -50000.0, "reza": -300000.0}
-        payments = spliito.settle(balances)
+        payments = spliito.settle(balances, [])
         self.assertEqual(len(payments), 3)
         self.assertTrue(all(abs(v) < 0.001 for v in net_after(balances, payments).values()))
 
     def test_nobody_owes_means_no_payments(self):
-        self.assertEqual(spliito.settle({"a": 0.0, "b": 0.0}), [])
-        self.assertEqual(spliito.settle({}), [])
+        self.assertEqual(spliito.settle({"a": 0.0, "b": 0.0}, []), [])
+        self.assertEqual(spliito.settle({}, []), [])
 
     def test_groups_cover_every_person_once_and_each_sums_to_zero(self):
         rng = random.Random(3)
@@ -115,10 +120,9 @@ class SettlementAccuracyTests(unittest.TestCase):
 
     def test_more_than_eighteen_people_prints_note_and_still_clears(self):
         balances = {f"p{i}": 1.0 if i % 2 == 0 else -1.0 for i in range(20)}
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            payments = spliito.settle(balances)
-        self.assertIn("Note: more than 18 people", output.getvalue())
+        warnings = []
+        payments = spliito.settle(balances, warnings)
+        self.assertIn("Note: more than 18 people", warnings[0])
         self.assertTrue(all(abs(v) < 1e-6 for v in net_after(balances, payments).values()))
 
 
@@ -198,13 +202,11 @@ class BalanceCalculationTests(unittest.TestCase):
 
     def test_total_line_says_zero_for_balanced_input(self):
         stdout, _ = run_script("nik 10 nik eva\n")
-        self.assertIn("TOTAL: 0.00 (balances add up to zero", stdout)
+        self.assertIn("2 people, 1 payment, total 0.00", stdout)
 
     def test_total_line_warns_when_balances_do_not_add_up(self):
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            spliito.print_report({"a": 1.0}, [], "", "")
-        self.assertIn("should be 0.00, so the script has a calculation bug", output.getvalue())
+        blocks = spliito.report_blocks({"a": 1.0}, [], "", "")
+        self.assertIn("total 1.00 (should be 0.00, calculation bug)", blocks[2][0])
 
 
 class InputParsingTests(unittest.TestCase):
@@ -253,7 +255,7 @@ class InputParsingTests(unittest.TestCase):
         stdout, code = run_script("a* 10 b\n")
         self.assertEqual(code, 1)
         self.assertIn("Error: '*' and '~' are not allowed in names", stdout)
-        self.assertNotIn("SUMMARY", stdout)
+        self.assertNotIn("PAYMENTS", stdout)
 
     def test_tilde_in_a_name_is_an_error(self):
         stdout, code = run_script("nik 10 ni~k\n")
@@ -276,10 +278,16 @@ class InputParsingTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("Usage:", result.stdout)
 
-    def test_empty_file_says_everyone_is_settled(self):
+    def test_empty_file_shows_how_to_write_an_expense(self):
         stdout, code = run_script("")
         self.assertEqual(code, 0)
-        self.assertIn("Everyone is settled.", stdout)
+        self.assertIn("Nothing to calculate yet.", stdout)
+        self.assertNotIn("PAYMENTS", stdout)
+
+    def test_invalid_lines_are_listed_under_warnings_after_the_report(self):
+        stdout, _ = run_script("ana sixty ana\nnik 10 nik eva\n")
+        self.assertTrue(stdout.endswith("\n\nWARNINGS\nInvalid amount: sixty in line: ana sixty ana\n"))
+        self.assertLess(stdout.index("PAYMENTS"), stdout.index("WARNINGS"))
 
 
 class TitleTests(unittest.TestCase):
@@ -289,11 +297,11 @@ class TitleTests(unittest.TestCase):
 
     def test_comment_on_another_line_is_not_a_title(self):
         stdout, _ = run_script("nik 10 nik eva\n# not a title\n")
-        self.assertTrue(stdout.startswith("SUMMARY"))
+        self.assertTrue(stdout.startswith("PAYMENTS"))
 
     def test_empty_first_comment_gives_no_title(self):
         stdout, _ = run_script("#\nnik 10 nik eva\n")
-        self.assertTrue(stdout.startswith("SUMMARY"))
+        self.assertTrue(stdout.startswith("PAYMENTS"))
 
     def test_byte_order_mark_does_not_hide_the_title(self):
         stdout, _ = run_script(b"\xef\xbb\xbf# Byte order\nnik 10 nik eva\n")
@@ -309,21 +317,23 @@ class TitleTests(unittest.TestCase):
 class CurrencyTests(unittest.TestCase):
     def test_at_line_sets_currency_for_following_lines(self):
         stdout, _ = run_script("@EUR\nnik 50 nik eva\n")
-        self.assertIn("SUMMARY - EUR: 2 people, 1 payment", stdout)
+        self.assertIn("PAYMENTS (EUR)", stdout)
         self.assertIn("eva pays nik 25.00 EUR", stdout)
+        self.assertIn("2 people, 1 payment, total 0.00 EUR", stdout)
 
-    def test_currency_sections_are_separated_by_a_line(self):
+    def test_currency_sections_are_headed_and_have_no_divider(self):
         stdout, _ = run_script("@IRT\nali 10 ali sara\n@AMD\nali 10 ali sara\n")
-        self.assertEqual(stdout.count("\n-----\n"), 1)
-
-    def test_single_currency_has_no_separator(self):
-        stdout, _ = run_script("@IRT\nali 10 ali sara\n")
+        self.assertIn("PAYMENTS (IRT)", stdout)
+        self.assertIn("PAYMENTS (AMD)", stdout)
         self.assertNotIn("-----", stdout)
-        self.assertIn("PAYMENTS - IRT", stdout)
+
+    def test_single_currency_is_headed_with_its_code(self):
+        stdout, _ = run_script("@IRT\nali 10 ali sara\n")
+        self.assertIn("PAYMENTS (IRT)", stdout)
 
     def test_plain_numbers_after_currency_are_labelled_no_currency(self):
         stdout, _ = run_script("@EUR\nnik 50 nik eva\n@\nbob 40 bob cy\n")
-        self.assertIn("PAYMENTS - NO CURRENCY", stdout)
+        self.assertIn("PAYMENTS (NO CURRENCY)", stdout)
         self.assertIn("cy pays bob 20.00\n", stdout)
 
     def test_plain_numbers_only_have_no_labels(self):
@@ -342,44 +352,51 @@ class CurrencyTests(unittest.TestCase):
 
 
 class OutputFormatTests(unittest.TestCase):
-    def test_payments_for_one_payer_are_one_block_and_singles_come_first(self):
+    def test_single_payers_come_first_then_each_multi_payer(self):
         stdout, _ = run_script("ali 400000 ali reza\nsara 300000 sara mina\nmina 200000 mina reza\n")
-        payments = stdout.split("PAYMENTS\n\n")[1].strip().split("\n\n")
-        self.assertEqual(payments[0], "mina pays sara 50,000.00")
-        self.assertEqual(payments[1], "reza pays ali 200,000.00\nreza pays sara 100,000.00")
+        self.assertEqual(payment_lines(stdout), [
+            "mina pays sara 50,000.00",
+            "reza pays ali 200,000.00",
+            "reza pays sara 100,000.00",
+        ])
 
-    def test_each_multi_payer_gets_its_own_block(self):
-        # p1 and p2 each pay two people, so each gets a block of their own
+    def test_payments_of_each_multi_payer_are_listed_together(self):
         stdout, _ = run_script("a 200 a p1\nb 200 b p1\nc 200 c p2\nd 200 d p2\n")
-        blocks = stdout.split("PAYMENTS\n\n")[1].strip().split("\n\n")
-        self.assertEqual(blocks, [
-            "p1 pays a 100.00\np1 pays b 100.00",
-            "p2 pays c 100.00\np2 pays d 100.00",
+        self.assertEqual(payment_lines(stdout), [
+            "p1 pays a 100.00",
+            "p1 pays b 100.00",
+            "p2 pays c 100.00",
+            "p2 pays d 100.00",
         ])
 
-    def test_single_payers_come_first_in_one_block(self):
+    def test_single_payers_come_first_in_the_list(self):
         stdout, _ = run_script("max 100 max joe\nmax 200 max nik\ntom 100 tom joe\ntom 300 tom nik\nivy 50 ivy sam\n")
-        blocks = stdout.split("PAYMENTS\n\n")[1].strip().split("\n\n")
-        self.assertEqual(blocks, [
-            "joe pays max 100.00\nsam pays ivy 25.00",
-            "nik pays tom 200.00\nnik pays max 50.00",
+        self.assertEqual(payment_lines(stdout), [
+            "joe pays max 100.00",
+            "sam pays ivy 25.00",
+            "nik pays tom 200.00",
+            "nik pays max 50.00",
         ])
 
-    def test_payments_are_sorted_by_amount_within_each_block(self):
+    def test_payments_are_sorted_by_amount_for_each_payer(self):
         stdout, _ = run_script("max 100 max joe\nmax 200 max nik\ntom 100 tom joe\ntom 300 tom nik\nivy 50 ivy sam\n")
-        for block in stdout.split("PAYMENTS\n\n")[1].strip().split("\n\n"):
-            amounts = [float(line.split()[-1].replace(",", "")) for line in block.splitlines()]
-            with self.subTest(block=block):
+        by_payer = defaultdict(list)
+        for line in payment_lines(stdout):
+            by_payer[line.split()[0]].append(float(line.split()[-1].replace(",", "")))
+        for payer, amounts in by_payer.items():
+            with self.subTest(payer=payer):
                 self.assertEqual(amounts, sorted(amounts, reverse=True))
 
     def test_headings_are_upper_case(self):
         stdout, _ = run_script("nik 10 nik eva\n")
-        for heading in ["SUMMARY:", "BALANCES", "TOTAL:", "PAYMENTS"]:
+        for heading in ["PAYMENTS", "BALANCES"]:
             self.assertIn(heading, stdout)
+        self.assertNotIn("SUMMARY", stdout)
+        self.assertNotIn("TOTAL", stdout)
 
-    def test_summary_uses_singular_for_one(self):
+    def test_summary_line_uses_singular_for_one(self):
         stdout, _ = run_script("nik 10 nik eva\n")
-        self.assertIn("SUMMARY: 2 people, 1 payment", stdout)
+        self.assertIn("\n\n2 people, 1 payment, total 0.00\n", stdout)
 
     def test_amounts_have_thousands_separators(self):
         stdout, _ = run_script("ali 2000000 ali bob\n")
@@ -393,26 +410,23 @@ class GoldenOutputTests(unittest.TestCase):
         stdout, _ = run_script("# Dinner\nana 60 ana ben cy\nben 30 ben cy\n")
         expected = """Dinner
 
-SUMMARY: 3 people, 2 payments
+PAYMENTS
+cy pays ana 35.00
+ben pays ana 5.00
 
 BALANCES
-
 ana gets 40.00
 ben owes 5.00
 cy owes 35.00
 
-TOTAL: 0.00 (balances add up to zero, so every payment is accounted for)
-
-PAYMENTS
-
-cy pays ana 35.00
-ben pays ana 5.00
+3 people, 2 payments, total 0.00
 """
-        self.assertEqual(stdout.strip(), expected.strip())
+        self.assertEqual(stdout, expected)
 
     def test_example_expenses_file(self):
         stdout, _ = run_script(EXAMPLE.read_text(encoding="utf-8"))
-        self.assertIn("Weekend trip expenses\n\nSUMMARY: 10 people, 9 payments", stdout)
+        self.assertIn("Weekend trip expenses\n\nPAYMENTS\nivy pays sam 931.79\n", stdout)
+        self.assertIn("10 people, 9 payments, total 0.00", stdout)
         self.assertIn("tom pays lia 1.25", stdout)
         self.assertIn("ivy owes 931.79", stdout)
 

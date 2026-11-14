@@ -22,12 +22,11 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applic
 const DINNER = '# Dinner\nana 60 ana ben cy\nben 30 ben cy\n';
 const DINNER_REPORT = [
   'Dinner', '',
-  'SUMMARY: 3 people, 2 payments', '',
-  'BALANCES', '',
-  'ana gets 40.00', 'ben owes 5.00', 'cy owes 35.00', '',
-  'TOTAL: 0.00 (balances add up to zero, so every payment is accounted for)', '',
-  'PAYMENTS', '',
+  'PAYMENTS',
   'cy pays ana 35.00', 'ben pays ana 5.00', '',
+  'BALANCES',
+  'ana gets 40.00', 'ben owes 5.00', 'cy owes 35.00', '',
+  '3 people, 2 payments, total 0.00',
 ].join('\n') + '\n';
 
 // Static server for docs/, so the service worker and the manifest work as they would on GitHub Pages
@@ -179,8 +178,13 @@ class Page {
     await this.call('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
   }
 
+  // Sets the text the way typing does, so the page sees an input event
   async setInput(text) {
-    await this.eval(`document.getElementById('input').value = ${JSON.stringify(text)}`);
+    await this.eval(`(() => {
+      const input = document.getElementById('input');
+      input.value = ${JSON.stringify(text)};
+      input.dispatchEvent(new Event('input'));
+    })()`);
   }
 
   async uploadFile(filePath) {
@@ -341,7 +345,7 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
     it('makes every button at least 44px tall on a phone', async () => {
       const { page } = await openApp(390, 844, true);
       const heights = await page.eval("[...document.querySelectorAll('button, label.button')].map((el) => el.getBoundingClientRect().height)");
-      assert.equal(heights.length, 4, 'Copy, Calculate, Download and Load .txt');
+      assert.equal(heights.length, 4, 'Copy, Calculate, Download and Load .txt or .md');
       heights.forEach((height) => assert.ok(height >= 44, `button only ${height}px tall`));
     });
 
@@ -370,7 +374,7 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
       await page.setInput(DINNER);
       await page.eval("document.getElementById('input').focus()");
       await page.key('Enter', { ctrl: true });
-      assert.match(await page.eval("document.getElementById('report').textContent"), /SUMMARY: 3 people/);
+      assert.match(await page.eval("document.getElementById('report').textContent"), /3 people, 2 payments/);
     });
 
     it('calculates on Cmd+Enter', async () => {
@@ -378,7 +382,7 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
       await page.setInput(DINNER);
       await page.eval("document.getElementById('input').focus()");
       await page.key('Enter', { meta: true });
-      assert.match(await page.eval("document.getElementById('report').textContent"), /SUMMARY: 3 people/);
+      assert.match(await page.eval("document.getElementById('report').textContent"), /3 people, 2 payments/);
     });
 
     it('adds a new line on plain Enter and does not calculate', async () => {
@@ -394,8 +398,60 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
     it('handles empty input without an error', async () => {
       const { page } = await openApp(1280, 800);
       await page.click('#calculate');
-      assert.match(await page.eval("document.getElementById('report').textContent"), /SUMMARY: 0 people, 0 payments/);
+      assert.match(await page.eval("document.getElementById('report').textContent"), /Nothing to calculate yet/);
       assert.deepEqual(page.errors, []);
+    });
+
+    it('shows how to write an expense instead of an empty report when no line is valid', async () => {
+      const { page } = await openApp(1280, 800);
+      await page.setInput('just some notes\nsixty is not an amount ana\n');
+      await page.click('#calculate');
+      const report = await page.eval("document.getElementById('report').textContent");
+      assert.match(report, /Invalid amount: some in line: just some notes/);
+      assert.match(report, /Nothing to calculate yet/);
+      assert.match(report, /ana 60 ana ben cy/);
+      assert.doesNotMatch(report, /SUMMARY|BALANCES|TOTAL|PAYMENTS/);
+    });
+
+    it('keeps the full report when every expense settles to zero', async () => {
+      const { page } = await openApp(1280, 800);
+      await page.setInput('ana 10 ana\n');
+      await page.click('#calculate');
+      const report = await page.eval("document.getElementById('report').textContent");
+      assert.match(report, /1 person, 0 payments, total 0\.00/);
+      assert.match(report, /Everyone is settled\./);
+      assert.doesNotMatch(report, /Nothing to calculate yet/);
+    });
+
+    it('dims the report and asks for Calculate when the text changes after it was calculated', async () => {
+      const { page } = await openApp(1280, 800);
+      await page.setInput(DINNER);
+      await page.click('#calculate');
+      assert.equal(await page.eval("document.getElementById('status').textContent"), 'Report updated.');
+      await page.setInput(DINNER + 'dan 9 dan\n');
+      assert.equal(await page.eval("document.getElementById('report').classList.contains('stale')"), true);
+      assert.match(await page.eval("document.getElementById('status').textContent"), /Press Calculate/);
+    });
+
+    it('updates the report, flashes it and clears the stale state on Calculate', async () => {
+      const { page } = await openApp(1280, 800);
+      await page.setInput(DINNER);
+      await page.click('#calculate');
+      await page.setInput(DINNER + 'dan 9 dan\n');
+      await page.click('#calculate');
+      assert.equal(await page.eval("document.getElementById('report').classList.contains('stale')"), false);
+      assert.equal(await page.eval("document.getElementById('report').classList.contains('updated')"), true);
+      assert.equal(await page.eval("document.getElementById('status').textContent"), 'Report updated.');
+      assert.match(await page.eval("document.getElementById('report').textContent"), /dan is settled/);
+    });
+
+    it('clears the stale state when the text is changed back to the calculated text', async () => {
+      const { page } = await openApp(1280, 800);
+      await page.setInput(DINNER);
+      await page.click('#calculate');
+      await page.setInput(DINNER + 'x');
+      await page.setInput(DINNER);
+      assert.equal(await page.eval("document.getElementById('report').classList.contains('stale')"), false);
     });
 
     it('reports invalid lines and still calculates the valid ones', async () => {
@@ -404,7 +460,7 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
       await page.click('#calculate');
       const report = await page.eval("document.getElementById('report').textContent");
       assert.match(report, /Invalid amount: sixty/);
-      assert.match(report, /SUMMARY: 3 people, 2 payments/);
+      assert.match(report, /3 people, 2 payments/);
     });
 
     it('loads a .txt chosen with the file picker and calculates it', async () => {
@@ -427,13 +483,22 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
       await page.waitFor("document.getElementById('input').value.startsWith('# Dinner')");
     });
 
-    it('rejects a non-.txt file chosen with the picker and leaves the input alone', async () => {
+    it('loads a .md chosen with the file picker and calculates it', async () => {
+      const { page } = await openApp(1280, 800);
+      const file = path.join(tmp, 'dinner.md');
+      fs.writeFileSync(file, DINNER);
+      await page.uploadFile(file);
+      await page.waitFor("document.getElementById('input').value.startsWith('# Dinner')");
+      assert.equal(await page.eval("document.getElementById('report').textContent"), DINNER_REPORT);
+    });
+
+    it('rejects a non-.txt, non-.md file chosen with the picker and leaves the input alone', async () => {
       const { page } = await openApp(1280, 800);
       await page.setInput('ana 1 ana');
-      const file = path.join(tmp, 'notes.md');
-      fs.writeFileSync(file, '# not a txt');
+      const file = path.join(tmp, 'notes.pdf');
+      fs.writeFileSync(file, '%PDF-1.4');
       await page.uploadFile(file);
-      await page.waitFor("document.getElementById('report').textContent.startsWith('Not a .txt file')");
+      await page.waitFor("document.getElementById('report').textContent.startsWith('Not a .txt or .md file: notes.pdf')");
       assert.equal(await page.eval("document.getElementById('input').value"), 'ana 1 ana');
     });
 
@@ -444,10 +509,17 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
       assert.equal(await page.eval("document.getElementById('report').textContent"), DINNER_REPORT);
     });
 
-    it('rejects a dropped non-.txt file', async () => {
+    it('loads a dropped .md file and calculates it', async () => {
+      const { page } = await openApp(1280, 800);
+      await page.drop('dinner.md', DINNER);
+      await page.waitFor("document.getElementById('input').value.startsWith('# Dinner')");
+      assert.equal(await page.eval("document.getElementById('report').textContent"), DINNER_REPORT);
+    });
+
+    it('rejects a dropped file that is neither .txt nor .md', async () => {
       const { page } = await openApp(1280, 800);
       await page.drop('photo.png', 'binary-ish', 'image/png');
-      await page.waitFor("document.getElementById('report').textContent.startsWith('Not a .txt file: photo.png')");
+      await page.waitFor("document.getElementById('report').textContent.startsWith('Not a .txt or .md file: photo.png')");
       assert.equal(await page.eval("document.getElementById('input').value"), '');
     });
 
@@ -523,17 +595,28 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
       const [name] = await waitForDownload(downloads);
       assert.match(name, /^expenses-\d{4}-\d{2}-\d{2}-\d{4}\.txt$/);
     });
+
+    it('downloads a loaded .md file as a .md file', async () => {
+      const { page, downloads } = await openApp(1280, 800);
+      await page.drop('dinner.md', DINNER);
+      await page.waitFor("document.getElementById('input').value.startsWith('# Dinner')");
+      await page.click('#download');
+      const [name] = await waitForDownload(downloads);
+      assert.match(name, /^Dinner-\d{4}-\d{2}-\d{2}-\d{4}\.md$/);
+    });
   });
 
   describe('output text', () => {
-    it('prints each currency in its own section, with a separator', async () => {
+    it('prints each currency in its own section, headed with the currency', async () => {
       const { page } = await openApp(1280, 800);
       await page.setInput('# Trip\n@EUR\nnik 50 nik eva\nana 30 ana eva\n@\nbob 40 bob cy\n');
       await page.click('#calculate');
       const report = await page.eval("document.getElementById('report').textContent");
-      assert.match(report, /SUMMARY - EUR: 3 people, 2 payments/);
-      assert.match(report, /SUMMARY - NO CURRENCY: 2 people, 1 payment/);
-      assert.match(report, /\n-----\n/);
+      assert.match(report, /PAYMENTS \(EUR\)/);
+      assert.match(report, /3 people, 2 payments, total 0\.00 EUR/);
+      assert.match(report, /PAYMENTS \(NO CURRENCY\)/);
+      assert.match(report, /2 people, 1 payment, total 0\.00\n/);
+      assert.doesNotMatch(report, /-----/);
     });
 
     it('prints an error and no report for a name with * in it', async () => {
@@ -542,7 +625,7 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
       await page.click('#calculate');
       const report = await page.eval("document.getElementById('report').textContent");
       assert.match(report, /Error: '\*' and '~' are not allowed in names/);
-      assert.doesNotMatch(report, /SUMMARY/);
+      assert.doesNotMatch(report, /PAYMENTS/);
     });
 
     it('prints warnings for underscores and for # right after a name', async () => {
