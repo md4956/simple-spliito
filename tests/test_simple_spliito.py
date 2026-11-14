@@ -5,6 +5,7 @@ import importlib.util
 import io
 import os
 import random
+import re
 import subprocess
 import sys
 import tempfile
@@ -32,6 +33,19 @@ def run_script(content, suffix=".txt"):
     finally:
         os.remove(file.name)
     return result.stdout, result.returncode
+
+
+def plain_code_blocks(markdown):
+    """The text of each code block in a Markdown file that has no language after its opening fence."""
+    blocks, lines, inside, plain = [], [], False, False
+    for line in markdown.splitlines(keepends=True):
+        if line.startswith("```"):
+            if inside and plain:
+                blocks.append("".join(lines))
+            inside, plain, lines = not inside, line.strip() == "```", []
+        elif inside:
+            lines.append(line)
+    return blocks
 
 
 def min_payments(values):
@@ -405,6 +419,24 @@ class OutputFormatTests(unittest.TestCase):
 
 class GoldenOutputTests(unittest.TestCase):
     """The examples in the README must match what the script prints."""
+
+    def test_every_readme_output_example_matches_the_script(self):
+        blocks = plain_code_blocks((ROOT / "README.md").read_text(encoding="utf-8"))
+
+        def block(start):
+            found = [b for b in blocks if b.startswith(start)]
+            self.assertEqual(len(found), 1, f"expected one README block starting with {start!r}")
+            return found[0]
+
+        examples = [
+            (block("# Dinner\n"), block("Dinner\n\nPAYMENTS\n")),
+            (block("# Trip, two currencies\n"), block("Trip, two currencies\n\nPAYMENTS (EUR)\n")),
+            (EXAMPLE.read_text(encoding="utf-8"), block("Weekend trip expenses\n\nPAYMENTS\n")),
+        ]
+        for expenses, output in examples:
+            with self.subTest(output=output.splitlines()[0]):
+                stdout, _ = run_script(expenses)
+                self.assertEqual(stdout, output)
 
     def test_quick_start(self):
         stdout, _ = run_script("# Dinner\nana 60 ana ben cy\nben 30 ben cy\n")
