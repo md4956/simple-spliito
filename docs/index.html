@@ -90,24 +90,11 @@
   const input = document.getElementById('input');
   const report = document.getElementById('report');
   const status = document.getElementById('status');
-  // Shown instead of an empty report when no expense line could be read
-  const HINT = [
-    'Nothing to calculate yet. Write one expense per line: the payer, the amount, then the people it is split between.',
-    '',
-    '    # Dinner',
-    '    ana 60 ana ben cy',
-    '    ben 30 ben cy',
-    '',
-    'The first line can be a # title. Load a .txt or .md file, or drop one anywhere on this page.',
-  ].join('\n');
   let calculatedText = null;  // the input the report was made from
   let fileExt = '.txt';       // extension of the last loaded file, so Download keeps it
 
   function calculate() {
-    const result = Spliito.run(input.value);
-    // Show the problems found, then how to write an expense, instead of a report with no people in it
-    const notes = result.text.split('\n').filter((line) => /^(Invalid|Warning|Error)/.test(line));
-    report.textContent = result.expenses ? result.text : (notes.length ? notes.join('\n') + '\n\n' : '') + HINT;
+    report.textContent = Spliito.run(input.value).text;
     report.classList.remove('placeholder');
     calculatedText = input.value;
     updateStale();

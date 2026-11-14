@@ -1,6 +1,16 @@
 EPSILON = 0.0001
 # The exact search doubles in cost with every extra person
 MAX_EXACT_PEOPLE = 18
+# Printed instead of a report when no expense line could be read
+HINT = """Nothing to calculate yet. Write one expense per line:
+payer amount who shares it
+
+Example:
+# Dinner
+ana 60 ana ben cy
+ben 30 ben cy
+
+The first line can be a # title. The amount is split between the people listed."""
 
 
 def split_into_groups(amounts):
@@ -39,11 +49,11 @@ def split_into_groups(amounts):
     return groups
 
 
-def settle(balances):
+def settle(balances, warnings):
     """Return the (payer, receiver, amount) payments that settle the balances."""
     people = [k for k, v in balances.items() if abs(v) >= EPSILON]
     if len(people) > MAX_EXACT_PEOPLE:
-        print(f"Note: more than {MAX_EXACT_PEOPLE} people to settle, so the fewest payments isn't guaranteed.")
+        warnings.append(f"Note: more than {MAX_EXACT_PEOPLE} people to settle, so the fewest payments isn't guaranteed.")
         groups = [people]
     else:
         groups = [[people[i] for i in group] for group in split_into_groups([balances[p] for p in people])]
@@ -69,8 +79,8 @@ def settle(balances):
     return transactions
 
 
-def print_report(balances, transactions, unit, label):
-    """Print one report.
+def report_blocks(balances, transactions, unit, label):
+    """Return the blocks of one currency section: payments first, then balances and totals.
 
     unit is the currency code, or '' for plain numbers. It is added after each amount.
     label is the name shown in each heading, or '' when there is nothing to add.
@@ -78,46 +88,48 @@ def print_report(balances, transactions, unit, label):
     from collections import defaultdict
 
     suffix = f" {unit}" if unit else ""
-    heading_suffix = f" - {label}" if label else ""
-    people_word = "person" if len(balances) == 1 else "people"
-    payment_word = "payment" if len(transactions) == 1 else "payments"
-    print(f"SUMMARY{heading_suffix}: {len(balances)} {people_word}, {len(transactions)} {payment_word}\n")
+    heading_suffix = f" ({label})" if label else ""
 
-    print(f"BALANCES{heading_suffix}\n")
+    payments = [f"PAYMENTS{heading_suffix}"]
+    if not transactions:
+        payments.append("Everyone is settled.")
+    else:
+        by_payer = defaultdict(list)
+        for payer, receiver, amount in transactions:
+            by_payer[payer].append((receiver, amount))
+        paid = {payer: sum(amount for _, amount in items) for payer, items in by_payer.items()}
+        single = sorted((p for p in by_payer if len(by_payer[p]) == 1), key=lambda p: -paid[p])
+        multi = sorted((p for p in by_payer if len(by_payer[p]) > 1), key=lambda p: -paid[p])
+
+        # Everyone who pays once comes first, then each person who pays several times
+        for payer in single + multi:
+            for receiver, amount in sorted(by_payer[payer], key=lambda x: -x[1]):
+                payments.append(f"{payer} pays {receiver} {amount:,.2f}{suffix}")
+
+    balance_lines = [f"BALANCES{heading_suffix}"]
     for person, balance in sorted(balances.items(), key=lambda x: -x[1]):
         if abs(balance) < 0.005:
-            print(f"{person} is settled")
+            balance_lines.append(f"{person} is settled")
         elif balance > 0:
-            print(f"{person} gets {balance:,.2f}{suffix}")
+            balance_lines.append(f"{person} gets {balance:,.2f}{suffix}")
         else:
-            print(f"{person} owes {-balance:,.2f}{suffix}")
+            balance_lines.append(f"{person} owes {-balance:,.2f}{suffix}")
 
     total = sum(balances.values())
     if abs(total) < 0.005:
-        print(f"\nTOTAL{heading_suffix}: 0.00 (balances add up to zero, so every payment is accounted for)")
+        total_text = f"0.00{suffix}"
     else:
-        print(f"\nTOTAL{heading_suffix}: {total:,.2f} (should be 0.00, so the script has a calculation bug)")
+        total_text = f"{total:,.2f}{suffix} (should be 0.00, calculation bug)"
+    people_word = "person" if len(balances) == 1 else "people"
+    payment_word = "payment" if len(transactions) == 1 else "payments"
+    summary = [f"{len(balances)} {people_word}, {len(transactions)} {payment_word}, total {total_text}"]
 
-    print(f"\nPAYMENTS{heading_suffix}\n")
-    if not transactions:
-        print("Everyone is settled.")
-        return
+    return [payments, balance_lines, summary]
 
-    by_payer = defaultdict(list)
-    for payer, receiver, amount in transactions:
-        by_payer[payer].append((receiver, amount))
-    paid = {payer: sum(amount for _, amount in items) for payer, items in by_payer.items()}
-    single = sorted((p for p in by_payer if len(by_payer[p]) == 1), key=lambda p: -paid[p])
-    multi = sorted((p for p in by_payer if len(by_payer[p]) > 1), key=lambda p: -paid[p])
 
-    # One block for everyone who pays once, then one block per person who pays several times
-    blocks = ([single] if single else []) + [[payer] for payer in multi]
-    for index, block in enumerate(blocks):
-        if index:
-            print()
-        for payer in block:
-            for receiver, amount in sorted(by_payer[payer], key=lambda x: -x[1]):
-                print(f"{payer} pays {receiver} {amount:,.2f}{suffix}")
+def emit(blocks):
+    """Print blocks of lines, with one blank line between blocks."""
+    print("\n\n".join("\n".join(block) for block in blocks))
 
 
 def main():
@@ -136,6 +148,7 @@ def main():
     balances = defaultdict(lambda: defaultdict(float))  # currency -> person -> balance
     currency = ''
     title = ''
+    warnings = []  # shown in a WARNINGS block after the report
 
     try:
         # utf-8-sig skips the byte-order mark some editors add at the start of the file
@@ -146,20 +159,20 @@ def main():
                 head, comment_start, _ = raw_line.partition('#')
                 line = head.strip()
                 if comment_start and head[-1:] not in ('', ' ', '\t'):
-                    print(f"Warning: '#' right after a name starts a comment: {raw_line.strip()}")
+                    warnings.append(f"Warning: '#' right after a name starts a comment: {raw_line.strip()}")
                 if not line:
                     continue
                 if line.startswith('@'):
                     codes = line[1:].split()
                     if len(codes) > 1:
-                        print(f"Invalid currency: {line}")
+                        warnings.append(f"Invalid currency: {line}")
                         continue
                     currency = codes[0] if codes else ''
                     continue
 
                 parts = line.split()
                 if len(parts) < 3:
-                    print(f"Invalid line: {line}")
+                    warnings.append(f"Invalid line: {line}")
                     continue
                 payer = parts[0]
                 try:
@@ -167,20 +180,21 @@ def main():
                     if not math.isfinite(amount):
                         raise ValueError
                 except ValueError:
-                    print(f"Invalid amount: {parts[1]} in line: {line}")
+                    warnings.append(f"Invalid amount: {parts[1]} in line: {line}")
                     continue
                 related_to = [p for p in ','.join(parts[2:]).split(',') if p]
 
                 if not related_to:
-                    print(f"Invalid related_to list in line: {line}")
+                    warnings.append(f"Invalid related_to list in line: {line}")
                     continue
 
                 names = [payer, *related_to]
                 if any('*' in name or '~' in name for name in names):
-                    print(f"Error: '*' and '~' are not allowed in names: {line}")
+                    warnings.append(f"Error: '*' and '~' are not allowed in names: {line}")
+                    emit([["WARNINGS", *warnings]])  # no report, because the expenses are incomplete
                     sys.exit(1)
                 if any('_' in name for name in names):
-                    print(f"Warning: '_' in a name can turn text italic in messengers: {line}")
+                    warnings.append(f"Warning: '_' in a name can turn text italic in messengers: {line}")
 
                 share = amount / len(related_to)
                 balances[currency][payer] += amount
@@ -194,20 +208,24 @@ def main():
         print(f"An error occurred: {e}")
         sys.exit(1)
 
+    blocks = []
     if title:
         if any(char in title for char in '_*~'):
-            print(f"Warning: '_', '*' and '~' in the title can change how messengers show it: {title}")
-        print(f"{title}\n")
+            warnings.append(f"Warning: '_', '*' and '~' in the title can change how messengers show it: {title}")
+        blocks.append([title])
 
-    # Plain-number expenses come first, then each currency in the order it first appears
-    groups = balances.items() or [('', defaultdict(float))]
-    multiple = len(groups) > 1
-    for index, (unit, person_balances) in enumerate(groups):
-        if index and multiple:
-            print("\n-----\n")
-        label = unit or ('NO CURRENCY' if multiple else '')
-        print_report(person_balances, settle(person_balances), unit, label)
-    print()
+    if balances:
+        # Plain-number expenses come first, then each currency in the order it first appears
+        multiple = len(balances) > 1
+        for unit, person_balances in balances.items():
+            label = unit or ('NO CURRENCY' if multiple else '')
+            blocks += report_blocks(person_balances, settle(person_balances, warnings), unit, label)
+    else:
+        blocks.append([HINT])
+
+    if warnings:
+        blocks.append(["WARNINGS", *warnings])
+    emit(blocks)
 
 
 if __name__ == "__main__":

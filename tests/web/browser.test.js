@@ -22,12 +22,11 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applic
 const DINNER = '# Dinner\nana 60 ana ben cy\nben 30 ben cy\n';
 const DINNER_REPORT = [
   'Dinner', '',
-  'SUMMARY: 3 people, 2 payments', '',
-  'BALANCES', '',
-  'ana gets 40.00', 'ben owes 5.00', 'cy owes 35.00', '',
-  'TOTAL: 0.00 (balances add up to zero, so every payment is accounted for)', '',
-  'PAYMENTS', '',
+  'PAYMENTS',
   'cy pays ana 35.00', 'ben pays ana 5.00', '',
+  'BALANCES',
+  'ana gets 40.00', 'ben owes 5.00', 'cy owes 35.00', '',
+  '3 people, 2 payments, total 0.00',
 ].join('\n') + '\n';
 
 // Static server for docs/, so the service worker and the manifest work as they would on GitHub Pages
@@ -375,7 +374,7 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
       await page.setInput(DINNER);
       await page.eval("document.getElementById('input').focus()");
       await page.key('Enter', { ctrl: true });
-      assert.match(await page.eval("document.getElementById('report').textContent"), /SUMMARY: 3 people/);
+      assert.match(await page.eval("document.getElementById('report').textContent"), /3 people, 2 payments/);
     });
 
     it('calculates on Cmd+Enter', async () => {
@@ -383,7 +382,7 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
       await page.setInput(DINNER);
       await page.eval("document.getElementById('input').focus()");
       await page.key('Enter', { meta: true });
-      assert.match(await page.eval("document.getElementById('report').textContent"), /SUMMARY: 3 people/);
+      assert.match(await page.eval("document.getElementById('report').textContent"), /3 people, 2 payments/);
     });
 
     it('adds a new line on plain Enter and does not calculate', async () => {
@@ -419,7 +418,7 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
       await page.setInput('ana 10 ana\n');
       await page.click('#calculate');
       const report = await page.eval("document.getElementById('report').textContent");
-      assert.match(report, /SUMMARY: 1 person, 0 payments/);
+      assert.match(report, /1 person, 0 payments, total 0\.00/);
       assert.match(report, /Everyone is settled\./);
       assert.doesNotMatch(report, /Nothing to calculate yet/);
     });
@@ -461,7 +460,7 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
       await page.click('#calculate');
       const report = await page.eval("document.getElementById('report').textContent");
       assert.match(report, /Invalid amount: sixty/);
-      assert.match(report, /SUMMARY: 3 people, 2 payments/);
+      assert.match(report, /3 people, 2 payments/);
     });
 
     it('loads a .txt chosen with the file picker and calculates it', async () => {
@@ -608,14 +607,16 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
   });
 
   describe('output text', () => {
-    it('prints each currency in its own section, with a separator', async () => {
+    it('prints each currency in its own section, headed with the currency', async () => {
       const { page } = await openApp(1280, 800);
       await page.setInput('# Trip\n@EUR\nnik 50 nik eva\nana 30 ana eva\n@\nbob 40 bob cy\n');
       await page.click('#calculate');
       const report = await page.eval("document.getElementById('report').textContent");
-      assert.match(report, /SUMMARY - EUR: 3 people, 2 payments/);
-      assert.match(report, /SUMMARY - NO CURRENCY: 2 people, 1 payment/);
-      assert.match(report, /\n-----\n/);
+      assert.match(report, /PAYMENTS \(EUR\)/);
+      assert.match(report, /3 people, 2 payments, total 0\.00 EUR/);
+      assert.match(report, /PAYMENTS \(NO CURRENCY\)/);
+      assert.match(report, /2 people, 1 payment, total 0\.00\n/);
+      assert.doesNotMatch(report, /-----/);
     });
 
     it('prints an error and no report for a name with * in it', async () => {
@@ -624,7 +625,7 @@ describe('docs/ in Chrome', { skip: CHROME ? false : 'Chrome not found; set CHRO
       await page.click('#calculate');
       const report = await page.eval("document.getElementById('report').textContent");
       assert.match(report, /Error: '\*' and '~' are not allowed in names/);
-      assert.doesNotMatch(report, /SUMMARY/);
+      assert.doesNotMatch(report, /PAYMENTS/);
     });
 
     it('prints warnings for underscores and for # right after a name', async () => {

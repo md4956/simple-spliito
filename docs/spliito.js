@@ -96,67 +96,77 @@
     return (x < 0 ? '-' : '') + grouped + '.' + digits.slice(-2);
   }
 
-  function printReport(balances, transactions, unit, label, print) {
-    const suffix = unit ? ` ${unit}` : '';
-    const headingSuffix = label ? ` - ${label}` : '';
-    const peopleWord = balances.size === 1 ? 'person' : 'people';
-    const paymentWord = transactions.length === 1 ? 'payment' : 'payments';
-    print(`SUMMARY${headingSuffix}: ${balances.size} ${peopleWord}, ${transactions.length} ${paymentWord}\n`);
+  // Shown instead of a report when no expense line could be read. Same text as HINT in the script.
+  const HINT = [
+    'Nothing to calculate yet. Write one expense per line:',
+    'payer amount who shares it',
+    '',
+    'Example:',
+    '# Dinner',
+    'ana 60 ana ben cy',
+    'ben 30 ben cy',
+    '',
+    'The first line can be a # title. The amount is split between the people listed.',
+  ].join('\n');
 
-    print(`BALANCES${headingSuffix}\n`);
+  // Joins blocks of lines with one blank line between them, as the script prints them
+  function emit(blocks) {
+    return blocks.map((block) => block.join('\n')).join('\n\n') + '\n';
+  }
+
+  // The blocks of one currency section: payments first, then balances and the totals
+  function reportBlocks(balances, transactions, unit, label) {
+    const suffix = unit ? ` ${unit}` : '';
+    const headingSuffix = label ? ` (${label})` : '';
+
+    const payments = [`PAYMENTS${headingSuffix}`];
+    if (!transactions.length) {
+      payments.push('Everyone is settled.');
+    } else {
+      const byPayer = new Map();
+      for (const [payer, receiver, amount] of transactions) {
+        if (!byPayer.has(payer)) byPayer.set(payer, []);
+        byPayer.get(payer).push([receiver, amount]);
+      }
+      const paid = new Map([...byPayer].map(([payer, items]) => [payer, items.reduce((sum, [, amount]) => sum + amount, 0)]));
+      const byPaid = (a, b) => paid.get(b) - paid.get(a);
+      const payers = [...byPayer.keys()];
+      const single = payers.filter((p) => byPayer.get(p).length === 1).sort(byPaid);
+      const multi = payers.filter((p) => byPayer.get(p).length > 1).sort(byPaid);
+
+      // Everyone who pays once comes first, then each person who pays several times
+      for (const payer of [...single, ...multi]) {
+        for (const [receiver, amount] of [...byPayer.get(payer)].sort((a, b) => b[1] - a[1])) {
+          payments.push(`${payer} pays ${receiver} ${money(amount)}${suffix}`);
+        }
+      }
+    }
+
+    const balanceLines = [`BALANCES${headingSuffix}`];
     for (const [person, balance] of [...balances].sort((a, b) => b[1] - a[1])) {
-      if (Math.abs(balance) < 0.005) print(`${person} is settled`);
-      else if (balance > 0) print(`${person} gets ${money(balance)}${suffix}`);
-      else print(`${person} owes ${money(-balance)}${suffix}`);
+      if (Math.abs(balance) < 0.005) balanceLines.push(`${person} is settled`);
+      else if (balance > 0) balanceLines.push(`${person} gets ${money(balance)}${suffix}`);
+      else balanceLines.push(`${person} owes ${money(-balance)}${suffix}`);
     }
 
     const total = [...balances.values()].reduce((sum, value) => sum + value, 0);
-    if (Math.abs(total) < 0.005) {
-      print(`\nTOTAL${headingSuffix}: 0.00 (balances add up to zero, so every payment is accounted for)`);
-    } else {
-      print(`\nTOTAL${headingSuffix}: ${money(total)} (should be 0.00, so the script has a calculation bug)`);
-    }
+    const totalText = Math.abs(total) < 0.005
+      ? `0.00${suffix}`
+      : `${money(total)}${suffix} (should be 0.00, calculation bug)`;
+    const peopleWord = balances.size === 1 ? 'person' : 'people';
+    const paymentWord = transactions.length === 1 ? 'payment' : 'payments';
+    const summary = [`${balances.size} ${peopleWord}, ${transactions.length} ${paymentWord}, total ${totalText}`];
 
-    print(`\nPAYMENTS${headingSuffix}\n`);
-    if (!transactions.length) {
-      print('Everyone is settled.');
-      return;
-    }
-
-    const byPayer = new Map();
-    for (const [payer, receiver, amount] of transactions) {
-      if (!byPayer.has(payer)) byPayer.set(payer, []);
-      byPayer.get(payer).push([receiver, amount]);
-    }
-    const paid = new Map([...byPayer].map(([payer, items]) => [payer, items.reduce((sum, [, amount]) => sum + amount, 0)]));
-    const byPaid = (a, b) => paid.get(b) - paid.get(a);
-    const payers = [...byPayer.keys()];
-    const single = payers.filter((p) => byPayer.get(p).length === 1).sort(byPaid);
-    const multi = payers.filter((p) => byPayer.get(p).length > 1).sort(byPaid);
-
-    // One block for everyone who pays once, then one block per person who pays several times
-    const blocks = [...(single.length ? [single] : []), ...multi.map((payer) => [payer])];
-    blocks.forEach((block, index) => {
-      if (index) print();
-      for (const payer of block) {
-        for (const [receiver, amount] of [...byPayer.get(payer)].sort((a, b) => b[1] - a[1])) {
-          print(`${payer} pays ${receiver} ${money(amount)}${suffix}`);
-        }
-      }
-    });
+    return [payments, balanceLines, summary];
   }
 
-  // Returns { text, ok, expenses }: the same stdout the script prints, false where the script exits
-  // with an error, and how many expense lines were read
+  // Returns { text, ok }: the same stdout the script prints, and false where the script exits with an error
   function run(text) {
-    let out = '';
-    const print = (s = '') => {
-      out += s + '\n';
-    };
+    const warnings = [];
+    const print = (s) => warnings.push(s);
     const balances = new Map();  // currency -> Map(person -> balance)
     let currency = '';
     let title = '';
-    let expenses = 0;
 
     const lines = text.replace(/^﻿/, '').split(/\r\n|\r|\n/);
     for (let index = 0; index < lines.length; index++) {
@@ -200,13 +210,12 @@
       const names = [payer, ...relatedTo];
       if (names.some((name) => name.includes('*') || name.includes('~'))) {
         print(`Error: '*' and '~' are not allowed in names: ${line}`);
-        return { text: out, ok: false, expenses };
+        return { text: emit([['WARNINGS', ...warnings]]), ok: false };
       }
       if (names.some((name) => name.includes('_'))) {
         print(`Warning: '_' in a name can turn text italic in messengers: ${line}`);
       }
 
-      expenses++;
       const share = amount / relatedTo.length;
       if (!balances.has(currency)) balances.set(currency, new Map());
       const current = balances.get(currency);
@@ -214,24 +223,26 @@
       for (const person of relatedTo) current.set(person, (current.get(person) || 0) - share);
     }
 
+    const blocks = [];
     if (title) {
       if ([...title].some((char) => '_*~'.includes(char))) {
         print(`Warning: '_', '*' and '~' in the title can change how messengers show it: ${title}`);
       }
-      print(`${title}\n`);
+      blocks.push([title]);
     }
 
-    // Plain-number expenses come first, then each currency in the order it first appears
-    const groups = balances.size ? [...balances] : [['', new Map()]];
-    const multiple = groups.length > 1;
-    groups.forEach(([unit, personBalances], index) => {
-      if (index && multiple) print('\n-----\n');
-      const label = unit || (multiple ? 'NO CURRENCY' : '');
-      const transactions = settle(personBalances, print);
-      printReport(personBalances, transactions, unit, label, print);
-    });
-    print();
-    return { text: out, ok: true, expenses };
+    if (balances.size) {
+      // Plain-number expenses come first, then each currency in the order it first appears
+      const multiple = balances.size > 1;
+      for (const [unit, personBalances] of balances) {
+        const label = unit || (multiple ? 'NO CURRENCY' : '');
+        blocks.push(...reportBlocks(personBalances, settle(personBalances, print), unit, label));
+      }
+    } else {
+      blocks.push([HINT]);
+    }
+    if (warnings.length) blocks.push(['WARNINGS', ...warnings]);
+    return { text: emit(blocks), ok: true };
   }
 
   const Spliito = { run };
